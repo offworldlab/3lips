@@ -2,7 +2,7 @@
 
 Target localisation for multi-static radar using ellipse intersections. Not a dating app.
 
-See a live instance at [http://3lips.30hours.dev](http://3lips.30hours.dev).
+~~See a live instance at [http://3lips.30hours.dev](http://3lips.30hours.dev).~~
 
 ![3lips example display](./example.png "3lips")
 
@@ -25,7 +25,7 @@ cp .env.example .env  # Create and edit your .env file
 sudo docker compose up -d —build
 ```
 
-The API front-end is available at [http://localhost:49156](http://localhost:49156).
+~~The API front-end is available at [http://localhost:49156](http://localhost:49156).~~
 
 ### Environment Variables
 
