@@ -1,33 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <!-- Use correct character set. -->
-    <meta charset="utf-8"/>
-    <!-- Tell IE to use the latest, best version. -->
-    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
-    <!-- Make the application on mobile take up the full browser screen and disable user scaling. -->
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
-    <title>3lips Map</title>
-    <script src="/cesium/Build/Cesium/Cesium.js"></script>
-    <style>
-      @import url(/cesium/Build/Cesium/Widgets/widgets.css);
-      html,
-      body,
-      #cesiumContainer {
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
+
+<head>
+  <!-- Use correct character set. -->
+  <meta charset="utf-8" />
+  <!-- Tell IE to use the latest, best version. -->
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <!-- Make the application on mobile take up the full browser screen and disable user scaling. -->
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no" />
+  <title>3lips Map</title>
+  <script src="/cesium/Build/Cesium/Cesium.js"></script>
+  <style>
+    @import url(/cesium/Build/Cesium/Widgets/widgets.css);
+
+    html,
+    body,
+    #cesiumContainer {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="cesiumContainer"></div>
+  <script>
+    // Get config from URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const configParam = urlParams.get('config');
+    if (configParam) {
+      try {
+        window.APP_CONFIG = JSON.parse(decodeURIComponent(configParam));
+      } catch (e) {
+        console.error('Map page - Error parsing config:', e);
       }
-    </style>
-  </head>
-  <body>
-    <div id="cesiumContainer"></div>
-	  <script src="lib/jquery-3.6.0.min.js"></script>
-    <script src="event/adsb.js"></script>
-    <script src="event/radar.js"></script>
-    <script src="event/ellipsoid.js"></script>
-	  <script src="main.js"></script>
-  </body>
+    } else {
+      console.error('No config found in URL parameters');
+    }
+  </script>
+  <script src="lib/jquery-3.6.0.min.js"></script>
+  <script src="event/adsb.js"></script>
+  <script src="event/radar.js"></script>
+  <script src="event/ellipsoid.js"></script>
+  <script src="main.js"></script>
+</body>
+
 </html>

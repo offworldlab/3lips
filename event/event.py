@@ -13,7 +13,7 @@ import copy
 import json
 import hashlib
 import os
-import yaml
+from dotenv import load_dotenv
 
 from algorithm.associator.AdsbAssociator import AdsbAssociator
 from algorithm.localisation.EllipseParametric import EllipseParametric
@@ -24,23 +24,37 @@ from common.Message import Message
 from data.Ellipsoid import Ellipsoid
 from algorithm.geometry.Geometry import Geometry
 
-# init config file
-try:
-  with open('config/config.yml', 'r') as file:
-    config = yaml.safe_load(file)
-  nSamplesEllipse = config['localisation']['ellipse']['nSamples']
-  thresholdEllipse = config['localisation']['ellipse']['threshold']
-  nDisplayEllipse = config['localisation']['ellipse']['nDisplay']
-  nSamplesEllipsoid = config['localisation']['ellipsoid']['nSamples']
-  thresholdEllipsoid = config['localisation']['ellipsoid']['threshold']
-  nDisplayEllipsoid = config['localisation']['ellipsoid']['nDisplay']
-  tDeleteAdsb = config['associate']['adsb']['tDelete']
-  save = config['3lips']['save']
-  tDelete = config['3lips']['tDelete']
-except FileNotFoundError:
-  print("Error: Configuration file not found.")
-except yaml.YAMLError as e:
-  print("Error reading YAML configuration:", e)
+# Load environment variables
+load_dotenv()
+
+# Initialize configuration from environment variables
+required_vars = {
+    'ELLIPSE_N_SAMPLES': int,
+    'ELLIPSE_THRESHOLD': int,
+    'ELLIPSE_N_DISPLAY': int,
+    'ELLIPSOID_N_SAMPLES': int,
+    'ELLIPSOID_THRESHOLD': int,
+    'ELLIPSOID_N_DISPLAY': int,
+    'ADSB_T_DELETE': int,
+    'THREE_LIPS_SAVE': str,
+    'THREE_LIPS_T_DELETE': int
+}
+
+# Check all required variables are set
+missing_vars = [var for var in required_vars if not os.getenv(var)]
+if missing_vars:
+    raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}")
+
+# Load and convert variables
+nSamplesEllipse = int(os.getenv('ELLIPSE_N_SAMPLES'))
+thresholdEllipse = int(os.getenv('ELLIPSE_THRESHOLD'))
+nDisplayEllipse = int(os.getenv('ELLIPSE_N_DISPLAY'))
+nSamplesEllipsoid = int(os.getenv('ELLIPSOID_N_SAMPLES'))
+thresholdEllipsoid = int(os.getenv('ELLIPSOID_THRESHOLD'))
+nDisplayEllipsoid = int(os.getenv('ELLIPSOID_N_DISPLAY'))
+tDeleteAdsb = int(os.getenv('ADSB_T_DELETE'))
+save = os.getenv('THREE_LIPS_SAVE').lower() == 'true'
+tDelete = int(os.getenv('THREE_LIPS_T_DELETE'))
 
 # init event loop
 api = []

@@ -1,14 +1,4 @@
-// load config with dirty synchronous call
-url = window.location.origin + '/config';
-var config;
-var xhr = new XMLHttpRequest();
-xhr.open("GET", url, false);
-xhr.send();
-if (xhr.status === 200) {
-    config = JSON.parse(xhr.responseText);
-} else {
-    console.error('Request failed with status:', xhr.status);
-}
+var config = window.APP_CONFIG;
 
 // fix tile server URL prefix
 for (var key in config['map']['tile_server']) {
@@ -191,12 +181,13 @@ if (cesiumCredit) {
 }
 
 function is_localhost(ip) {
-  
   if (ip === 'localhost') {
     return true;
   }
 
+  // Remove protocol and port
   ip = ip.replace(/^https?:\/\//, "");
+  ip = ip.split(':')[0];
   
   const localRanges = ['127.0.0.1', '192.168.0.0/16', '10.0.0.0/8', '172.16.0.0/12'];
 

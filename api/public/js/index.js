@@ -47,7 +47,13 @@ document.getElementById('buttonMap').addEventListener('click', function () {
   // Construct the URL with the form values
   var apiUrl = '?server=' + Array.from(servers).map(server => server.value).join('&server=');
   var mapUrl = '/map/index.html' + apiUrl + '&associator=' + associator + '&localisation=' + localisation + '&adsb=' + adsb;
-
+  
+  if (window.APP_CONFIG) {
+    const configParam = encodeURIComponent(JSON.stringify(window.APP_CONFIG));
+    mapUrl += '&config=' + configParam;
+  } else {
+    console.error('No APP_CONFIG available when clicking map button');
+  }
   // Redirect to the constructed URL
   window.location.href = mapUrl;
 });

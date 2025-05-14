@@ -7,31 +7,39 @@
 from flask import Flask, Response, render_template, request, redirect, jsonify, send_from_directory
 import os
 import requests
-import time
-import asyncio
-import yaml
+from dotenv import load_dotenv
+import json
 
 from common.Message import Message
 
+# Load environment variables
+load_dotenv()
+
 app = Flask(__name__)
 
-# init config file
-try:
-  with open('config/config.yml', 'r') as file:
-      config = yaml.safe_load(file)
-  radar_data = config['radar']
-  map_data = config['map']
-  config_data = config
-except FileNotFoundError:
-  print("Error: Configuration file not found.")
-except yaml.YAMLError as e:
-  print("Error reading YAML configuration:", e)
+# Initialize configuration from environment variables
+radar_data = []
+for i in range(1, 4):  # Assuming 3 radars as per example
+    name = os.getenv(f'RADAR_{i}_NAME')
+    url = os.getenv(f'RADAR_{i}_URL')
+    if name and url:
+        radar_data.append({'name': name, 'url': url})
+
+map_data = {
+    'location': {
+        'latitude': float(os.getenv('MAP_LATITUDE', -34.9286)),
+        'longitude': float(os.getenv('MAP_LONGITUDE', 138.5999))
+    },
+    'center_width': int(os.getenv('MAP_CENTER_WIDTH', 50000)),
+    'center_height': int(os.getenv('MAP_CENTER_HEIGHT', 40000)),
+    'tar1090': os.getenv('TAR1090_URL', '192.168.0.172:5001')
+}
 
 # store state data
 servers = []
 for radar in radar_data:
-  if radar['name'] and radar['url']:
-    servers.append({'name': radar['name'], 'url': radar['url']})
+    if radar['name'] and radar['url']:
+        servers.append({'name': radar['name'], 'url': radar['url']})
 
 associators = [
   {"name": "ADSB Associator", "id": "adsb-associator"}
@@ -66,8 +74,30 @@ message_api_request = Message('event', 6969)
 
 @app.route("/")
 def index():
-  return render_template("index.html", servers=servers, \
-  associators=associators, localisations=localisations, adsbs=adsbs)
+    app_config = {
+        'map': {
+            'location': {
+                'latitude': float(os.getenv('MAP_LATITUDE', -34.9286)),
+                'longitude': float(os.getenv('MAP_LONGITUDE', 138.5999))
+            },
+            'center_width': int(os.getenv('MAP_CENTER_WIDTH', 50000)),
+            'center_height': int(os.getenv('MAP_CENTER_HEIGHT', 40000)),
+            'tile_server': {
+                'esri': os.getenv('TILE_SERVER_ESRI', 'tile.datr.dev/data/esri-adelaide/'),
+                'mapbox_streets': os.getenv('TILE_SERVER_MAPBOX_STREETS', 'tile.datr.dev/data/mapbox-streets-v11/'),
+                'mapbox_dark': os.getenv('TILE_SERVER_MAPBOX_DARK', 'tile.datr.dev/data/mapbox-dark-v10/'),
+                'opentopomap': os.getenv('TILE_SERVER_OPENTOPOMAP', 'tile.datr.dev/data/opentopomap/')
+            },
+            'tar1090': os.getenv('TAR1090_URL', '192.168.0.172:5001')
+        }
+    }
+    return render_template("index.html", 
+                         servers=servers,
+                         associators=associators, 
+                         localisations=localisations, 
+                         adsbs=adsbs,
+                         app_config=app_config,
+                         config_json=json.dumps(app_config))
 
 # serve static files from the /app/public folder
 @app.route('/public/<path:file>')
@@ -125,10 +155,6 @@ def serve_cesium_content(file):
     print(f"Error fetching content from Apache server: {e}")
   return Response('Error fetching content from Apache server', status=500, content_type='text/plain')
 
-# output config file
-@app.route('/config')
-def config():
-  return config_data
 
 if __name__ == "__main__":
   app.run()

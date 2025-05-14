@@ -1,7 +1,9 @@
 version: '3'
 
 networks:
-    3lips:
+  3lips:
+  adsb-network:
+    external: true
 
 services:
 
@@ -12,13 +14,16 @@ services:
       dockerfile: ./api/Dockerfile
     image: 3lips-api
     ports:
-      - 49156:5000
+      - "${API_PORT:-49156}:5000"
     networks:
       - 3lips
+      - adsb-network
     volumes:
       - ./config:/app/config
       - ./common:/app/common
     container_name: 3lips-api
+    env_file:
+      - .env
 
   event:
     restart: always
@@ -28,12 +33,15 @@ services:
     image: 3lips-event
     networks:
       - 3lips
+      - adsb-network
     volumes:
       - ./config:/app/config
       - ./common:/app/common
       - ./test:/app/test
       - ./save:/app/save
     container_name: 3lips-event
+    env_file:
+      - .env
 
   cesium-apache:
     restart: always
@@ -44,3 +52,5 @@ services:
     networks:
       - 3lips
     container_name: 3lips-cesium
+    env_file:
+      - .env

@@ -16,15 +16,41 @@ See a live instance at [http://3lips.30hours.dev](http://3lips.30hours.dev).
 
 - Install docker and docker-compose on the host machine.
 - Clone this repository to some directory.
-- Edit the [config/config.yml](config/config.yml) file for scenario.
+- Create a `.env` file based on `.env.example` and configure your environment variables.
 - Run the docker compose command.
 
 ```bash
 sudo git clone http://github.com/30hours/3lips /opt/3lips
+cp .env.example .env  # Create and edit your .env file
 sudo docker compose up -d —build
 ```
 
 The API front-end is available at [http://localhost:49156](http://localhost:49156).
+
+### Environment Variables
+
+The following environment variables can be configured:
+
+#### Radar Configuration
+- `RADAR_1_NAME`, `RADAR_1_URL` - First radar name and URL
+- `RADAR_2_NAME`, `RADAR_2_URL` - Second radar name and URL
+- `RADAR_3_NAME`, `RADAR_3_URL` - Third radar name and URL
+
+#### Map Configuration
+- `MAP_LATITUDE`, `MAP_LONGITUDE` - Center coordinates of the map
+- `MAP_CENTER_WIDTH`, `MAP_CENTER_HEIGHT` - Map dimensions
+- `TAR1090_URL` - URL for TAR1090 service
+
+#### Localisation Configuration
+- `ELLIPSE_N_SAMPLES`, `ELLIPSE_THRESHOLD`, `ELLIPSE_N_DISPLAY` - Ellipse sampling parameters
+- `ELLIPSOID_N_SAMPLES`, `ELLIPSOID_THRESHOLD`, `ELLIPSOID_N_DISPLAY` - Ellipsoid sampling parameters
+
+#### ADSB Configuration
+- `ADSB_T_DELETE` - Time to delete ADSB data
+
+#### 3LIPS Configuration
+- `THREE_LIPS_SAVE` - Whether to save data (true/false)
+- `THREE_LIPS_T_DELETE` - Time to delete old data
 
 ## Method of Operation
 

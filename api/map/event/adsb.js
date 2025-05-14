@@ -1,5 +1,5 @@
 function event_adsb() {
-
+  
   fetch(adsb_url)
     .then(response => {
       if (!response.ok) {
