@@ -32,9 +32,8 @@ The API front-end is available at [http://localhost:49156](http://localhost:4915
 The following environment variables can be configured:
 
 #### Radar Configuration
-- `RADAR_1_NAME`, `RADAR_1_URL` - First radar name and URL
-- `RADAR_2_NAME`, `RADAR_2_URL` - Second radar name and URL
-- `RADAR_3_NAME`, `RADAR_3_URL` - Third radar name and URL
+- `RADAR_NAMES` - a comma separated list of identifiable radar names
+- `RADAR_URLS` - a comma separated list of urls from which to poll data
 
 #### Map Configuration
 - `MAP_LATITUDE`, `MAP_LONGITUDE` - Center coordinates of the map

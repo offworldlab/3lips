@@ -19,11 +19,21 @@ app = Flask(__name__)
 
 # Initialize configuration from environment variables
 radar_data = []
-for i in range(1, 4):  # Assuming 3 radars as per example
-    name = os.getenv(f'RADAR_{i}_NAME')
-    url = os.getenv(f'RADAR_{i}_URL')
-    if name and url:
-        radar_data.append({'name': name, 'url': url})
+radar_names = os.getenv('RADAR_NAMES', '')
+radar_urls = os.getenv('RADAR_URLS', '')
+
+if radar_names and radar_urls:
+    radar_names_list = [name.strip() for name in radar_names.split(',') if name.strip()]
+    radar_urls_list = [url.strip() for url in radar_urls.split(',') if url.strip()]
+    if len(radar_names_list) != len(radar_urls_list):
+        print(f"[ERROR] Number of RADAR_NAMES ({len(radar_names_list)}) does not match RADAR_URLS ({len(radar_urls_list)})", flush=True)
+    else:
+        for name, url in zip(radar_names_list, radar_urls_list):
+            radar_data.append({'name': name, 'url': url})
+        radar_list_str = [f"{r['name']}@{r['url']}" for r in radar_data]
+        print(f"[INFO] Loaded {len(radar_data)} radars: {radar_list_str}", flush=True)
+else:
+    print("[WARNING] RADAR_NAMES or RADAR_URLS not set or empty.", flush=True)
 
 map_data = {
     'location': {
