@@ -14,8 +14,10 @@ import json
 import hashlib
 import os
 from dotenv import load_dotenv
+import importlib
 
 from algorithm.associator.AdsbAssociator import AdsbAssociator
+from algorithm.associator.Associator import Associator
 from algorithm.localisation.EllipseParametric import EllipseParametric
 from algorithm.localisation.EllipsoidParametric import EllipsoidParametric
 from algorithm.localisation.SphericalIntersection import SphericalIntersection
@@ -72,9 +74,17 @@ verbose_tracker = tracker_config_params["verbose"]
 # init event loop
 api = []
 
-# init config
-tDelete = tDelete
-adsbAssociator = AdsbAssociator()
+# Dynamically load associator class from environment variable
+associator_type = os.getenv("ASSOCIATOR_TYPE", "AdsbAssociator")
+try:
+    associator_module = importlib.import_module(f"algorithm.associator.{associator_type}")
+    associator_class = getattr(associator_module, associator_type)
+    associator = associator_class()
+except (ModuleNotFoundError, AttributeError) as e:
+    print(f"Warning: Could not load associator '{associator_type}', defaulting to AdsbAssociator. Error: {e}")
+    from algorithm.associator.AdsbAssociator import AdsbAssociator
+    associator = AdsbAssociator()
+
 ellipseParametricMean = EllipseParametric("mean", nSamplesEllipse, thresholdEllipse)
 ellipseParametricMin = EllipseParametric("min", nSamplesEllipse, thresholdEllipse)
 ellipsoidParametricMean = EllipsoidParametric("mean", nSamplesEllipsoid, thresholdEllipsoid)
@@ -202,7 +212,7 @@ async def event():
             processed_api_request_outputs.append(error_output)
             continue
         # Perform item-specific association
-        associated_dets = adsbAssociator.process(item_radars, radar_dict_item, timestamp)
+        associated_dets = associator.process(item_radars, radar_dict_item, timestamp)
         # Prepare for localisation
         associated_dets_3_radars = {
             key: value

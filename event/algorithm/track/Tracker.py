@@ -1,7 +1,7 @@
 import numpy as np
 
 # Assuming these files will be created/are available in the specified paths
-from .Track import Track, TRACK_STATUS_TENTATIVE, TRACK_STATUS_CONFIRMED, TRACK_STATUS_COASTING, TRACK_STATUS_DELETED
+from .Track import Track, TrackStatus
 from ..geometry.Geometry import Geometry
 
 class Tracker:
@@ -200,8 +200,8 @@ class Tracker:
         """
         tracks_to_delete = []
         for track_id, track in self.active_tracks.items():
-            if track.status == TRACK_STATUS_TENTATIVE and track.hits >= self.config["min_hits_to_confirm"]:
-                track.status = TRACK_STATUS_CONFIRMED
+            if track.status == TrackStatus.TENTATIVE and track.hits >= self.config["min_hits_to_confirm"]:
+                track.status = TrackStatus.CONFIRMED
                 if self.config["verbose"]:
                     print(f"Track {track_id} confirmed.")
             

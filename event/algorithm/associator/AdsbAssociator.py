@@ -6,8 +6,9 @@
 import requests
 import math
 import os
+from .Associator import Associator
 
-class AdsbAssociator:
+class AdsbAssociator(Associator):
 
   """
   @class AdsbAssociator
@@ -101,8 +102,8 @@ class AdsbAssociator:
           # TODO extrapolate Doppler too
           for i in range(len(radar_detections['delay'])):
             delta_t = (timestamp - radar_detections['timestamp'])/1000
-            delay = (1000*radar_detections['delay'][i] + \
-            (-radar_detections['doppler'][i]*(299792458/fc))*delta_t)/1000
+            delay = (1000*float(radar_detections['delay'][i]) + \
+            (-float(radar_detections['doppler'][i])*(299792458/fc))*delta_t)/1000
             radar_detections['delay'][i] = delay
 
           # distance from aircraft to all detections
