@@ -4,6 +4,18 @@
 """
 
 import requests
+import ipaddress
+
+def is_localhost(server):
+    try:
+        # Remove port if present
+        host = server.split(':')[0]
+        # Try to parse as IP address
+        ip = ipaddress.ip_address(host)
+        return ip.is_loopback or ip.is_private
+    except ValueError:
+        # Not an IP, check for 'localhost'
+        return host.startswith("localhost")
 
 class AdsbTruth:
 
@@ -31,8 +43,13 @@ class AdsbTruth:
 
         output = {}
 
-        # get tar1090 URL
-        url = 'https://' + server + '/data/aircraft.json'
+        # Check if server is on local network
+        if is_localhost(server):
+            url = 'http://' + server + '/data/aircraft.json'
+        else:
+            url = 'https://' + server + '/data/aircraft.json'
+
+        print(f"Getting truth from {url}")
 
         # get ADSB detections
         try:

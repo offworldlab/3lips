@@ -5,6 +5,7 @@
 
 import requests
 import math
+import os
 
 class AdsbAssociator:
 
@@ -143,7 +144,7 @@ class AdsbAssociator:
 
     adsb = radar_data['config']['truth']['adsb']['tar1090']
 
-    api_url = "http://adsb2dd.30hours.dev/api/dd"
+    api_url = os.environ.get("ADSB2DD_API_URL", "http://adsb2dd.30hours.dev/api/dd")
 
     api_query = (
       api_url +
@@ -154,7 +155,7 @@ class AdsbAssociator:
       str(tx_lon) + "," + 
       str(tx_alt) +
       "&fc=" + str(fc/1000000) +
-      "&server=" + "http://" + str(adsb)
+      "&server=" + (str(adsb) if str(adsb).startswith("http") else "http://" + str(adsb))
     )
 
     return api_query

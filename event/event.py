@@ -23,6 +23,7 @@ from algorithm.truth.AdsbTruth import AdsbTruth
 from common.Message import Message
 from data.Ellipsoid import Ellipsoid
 from algorithm.geometry.Geometry import Geometry
+from algorithm.track.Tracker import Tracker
 
 # Load environment variables
 load_dotenv()
@@ -56,6 +57,18 @@ tDeleteAdsb = int(os.getenv('ADSB_T_DELETE'))
 save = os.getenv('THREE_LIPS_SAVE').lower() == 'true'
 tDelete = int(os.getenv('THREE_LIPS_T_DELETE'))
 
+# Tracker config from environment variables
+tracker_config_params = {
+    "verbose": os.environ.get("TRACKER_VERBOSE", "False").lower() == "true",
+    "max_misses_to_delete": int(os.environ.get("TRACKER_MAX_MISSES_TO_DELETE", 5)),
+    "min_hits_to_confirm": int(os.environ.get("TRACKER_MIN_HITS_TO_CONFIRM", 3)),
+    "gating_euclidean_threshold_m": float(os.environ.get("TRACKER_GATING_EUCLIDEAN_THRESHOLD_M", 10000.0)),
+    "initial_pos_uncertainty_ecef_m": [float(x) for x in os.environ.get("TRACKER_INITIAL_POS_UNCERTAINTY_ECEF_M", "500.0,500.0,500.0").split(",")],
+    "initial_vel_uncertainty_ecef_mps": [float(x) for x in os.environ.get("TRACKER_INITIAL_VEL_UNCERTAINTY_ECEF_MPS", "100.0,100.0,100.0").split(",")],
+    "dt_default_s": float(os.environ.get("TRACKER_DT_DEFAULT_S", 1.0)),
+}
+verbose_tracker = tracker_config_params["verbose"]
+
 # init event loop
 api = []
 
@@ -70,182 +83,229 @@ sphericalIntersection = SphericalIntersection()
 adsbTruth = AdsbTruth(tDeleteAdsb)
 saveFile = '/app/save/' + str(int(time.time())) + '.ndjson'
 
+# --- Tracker Integration: Initialize Global Tracker ---
+global_tracker = Tracker(config=tracker_config_params)
+# --- End Tracker Integration ---
+
 async def event():
+    global api, save, global_tracker
+    timestamp = int(time.time()*1000)
+    api_event_configs_this_cycle = copy.deepcopy(api)
 
-  print('Start event', flush=True)
+    if not api_event_configs_this_cycle:
+        if verbose_tracker:
+            print(f"{timestamp}: No active API requests. Tracker will predict only.")
+        if global_tracker:
+            _ = global_tracker.update_all_tracks([], timestamp)
+        return
 
-  global api, save
-  timestamp = int(time.time()*1000)
-  api_event = copy.copy(api)
+    # 1. Aggregate unique radar names
+    radar_names = []
+    for item_config in api_event_configs_this_cycle:
+        if "server" in item_config and isinstance(item_config["server"], list):
+            for radar_url_name in item_config["server"]:
+                radar_names.append(radar_url_name)
+    radar_names = list(set(radar_names))
 
-  # list all blah2 radars
-  radar_names = []
-  for item in api_event:
-    for radar in item["server"]:
-      radar_names.append(radar)
-  radar_names = list(set(radar_names))
+    # 2. Fetch data from all unique radars
+    radar_dict = {}
+    radar_detections_url = [
+        "http://" + radar_name + "/api/detection" for radar_name in radar_names]
+    radar_detections = []
+    for url in radar_detections_url:
+        try:
+            response = requests.get(url, timeout=1)
+            response.raise_for_status()
+            data = response.json()
+            radar_detections.append(data)
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching data from {url}: {e}")
+            radar_detections.append(None)
 
-  # get detections all radar
-  radar_detections_url = [
-    "http://" + radar_name + "/api/detection" for radar_name in radar_names]
-  radar_detections = []
-  for url in radar_detections_url:
-    try:
-      response = requests.get(url, timeout=1)
-      response.raise_for_status()
-      data = response.json()
-      radar_detections.append(data)
-    except requests.exceptions.RequestException as e:
-      print(f"Error fetching data from {url}: {e}")
-      radar_detections.append(None)
+    radar_config_url = [
+        "http://" + radar_name + "/api/config" for radar_name in radar_names]
+    radar_config = []
+    for url in radar_config_url:
+        try:
+            response = requests.get(url, timeout=1)
+            response.raise_for_status()
+            data = response.json()
+            radar_config.append(data)
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching data from {url}: {e}")
+            radar_config.append(None)
 
-  # get config all radar
-  radar_config_url = [
-    "http://" + radar_name + "/api/config" for radar_name in radar_names]
-  radar_config = []
-  for url in radar_config_url:
-    try:
-      response = requests.get(url, timeout=1)
-      response.raise_for_status()
-      data = response.json()
-      radar_config.append(data)
-    except requests.exceptions.RequestException as e:
-      print(f"Error fetching data from {url}: {e}")
-      radar_config.append(None)
+    for i in range(len(radar_names)):
+        radar_dict[radar_names[i]] = {
+            "detection": radar_detections[i],
+            "config": radar_config[i]
+        }
 
-  # store detections in dict
-  radar_dict = {}
-  for i in range(len(radar_names)):
-    radar_dict[radar_names[i]] = {
-      "detection": radar_detections[i],
-      "config": radar_config[i]
-    }
+    # 3. Fetch ADS-B truth data
+    truth_adsb = {}
+    adsb_urls = []
+    for item in api_event_configs_this_cycle:
+        adsb_urls.append(item["adsb"])
+    adsb_urls = list(set(adsb_urls))
+    for url in adsb_urls:
+        truth_adsb[url] = adsbTruth.process(url)
 
-  # store truth in dict
-  truth_adsb = {}
-  adsb_urls = []
-  for item in api_event:
-    adsb_urls.append(item["adsb"])
-  adsb_urls = list(set(adsb_urls))
-  for url in adsb_urls:
-    truth_adsb[url] = adsbTruth.process(url)
+    # --- Processing Starts ---
+    all_localised_points_for_tracker_input_this_scan = []
+    processed_api_request_outputs = []
+    unique_lla_points_for_tracker_keys = set()
 
-  # main processing
-  for item in api_event:
+    # --- Pass 1: Process each API request config & Collect Localised Points for Tracker ---
+    for item_config in api_event_configs_this_cycle:
+        item_processing_start_time = time.time()
+        item_radars = item_config.get("server", [])
+        if not isinstance(item_radars, list):
+            item_radars = [item_radars]
+        radar_dict_item = {
+            key: radar_dict.get(key)
+            for key in item_radars
+            if key in radar_dict and radar_dict.get(key) is not None
+        }
+        if not radar_dict_item or not any(radar_dict_item.get(r) and radar_dict_item[r].get("config") for r in item_radars):
+            print(f"Skipping item {item_config.get('hash')} due to missing radar data/config for its servers.")
+            temp_output = item_config.copy()
+            temp_output["timestamp_event"] = timestamp
+            temp_output["error"] = "Missing radar data/config for configured servers."
+            temp_output["detections_associated"] = {}
+            temp_output["detections_localised"] = {}
+            temp_output["ellipsoids"] = {}
+            temp_output["truth"] = {}
+            temp_output["time"] = 0
+            processed_api_request_outputs.append(temp_output)
+            continue
+        # Select associator & localisation_algorithm
+        localisation_id = item_config.get("localisation")
+        localisation_algorithm = None
+        if localisation_id == "ellipse-parametric-mean":
+            localisation_algorithm = ellipseParametricMean
+        elif localisation_id == "ellipse-parametric-min":
+            localisation_algorithm = ellipseParametricMin
+        elif localisation_id == "ellipsoid-parametric-mean":
+            localisation_algorithm = ellipsoidParametricMean
+        elif localisation_id == "ellipsoid-parametric-min":
+            localisation_algorithm = ellipsoidParametricMin
+        elif localisation_id == "spherical-intersection":
+            localisation_algorithm = sphericalIntersection
+        else:
+            print(f"Error: Localisation algorithm '{localisation_id}' invalid for item {item_config.get('hash')}.")
+            error_output = item_config.copy()
+            error_output.update({
+                "timestamp_event": timestamp, "error": f"Invalid localisation: {localisation_id}",
+                "detections_associated": {}, "detections_localised": {}, "ellipsoids": {},
+                "truth": truth_adsb.get(item_config.get("adsb"), {}), "time": 0
+            })
+            processed_api_request_outputs.append(error_output)
+            continue
+        # Perform item-specific association
+        associated_dets = adsbAssociator.process(item_radars, radar_dict_item, timestamp)
+        # Prepare for localisation
+        associated_dets_3_radars = {
+            key: value
+            for key, value in associated_dets.items()
+            if isinstance(value, list) and len(value) >= 3
+        }
+        associated_dets_2_radars = {
+            key: value
+            for key, value in associated_dets.items()
+            if isinstance(value, list) and len(value) >= 2
+        }
+        input_for_localisation = associated_dets_3_radars if localisation_id in ["ellipse-parametric-mean", "ellipse-parametric-min", "ellipsoid-parametric-mean", "ellipsoid-parametric-min", "spherical-intersection"] else associated_dets
+        localised_dets_for_item = localisation_algorithm.process(input_for_localisation, radar_dict_item)
+        # --- Collect unique localised points for the global tracker ---
+        for target_id, data_dict in localised_dets_for_item.items():
+            if 'points' in data_dict and data_dict['points']:
+                for point_lla in data_dict['points']:
+                    if isinstance(point_lla, list) and len(point_lla) == 3:
+                        point_key_tuple = (round(point_lla[0], 4), round(point_lla[1], 4), round(point_lla[2], 1))
+                        if point_key_tuple not in unique_lla_points_for_tracker_keys:
+                            unique_lla_points_for_tracker_keys.add(point_key_tuple)
+                            all_localised_points_for_tracker_input_this_scan.append({
+                                'lla_position': point_lla,
+                                'timestamp_ms': timestamp,
+                                'source_api_hash': item_config.get("hash", "unknown_item"),
+                                'source_target_id': target_id
+                            })
+                    elif verbose_tracker:
+                        print(f"Skipping malformed point for tracker input: {point_lla}")
+        # Calculate ellipsoids for display
+        ellipsoids_for_item = {}
+        if localisation_id in ["ellipse-parametric-mean", "ellipse-parametric-min", "ellipsoid-parametric-mean", "ellipsoid-parametric-min"]:
+            if associated_dets_2_radars:
+                key = next(iter(associated_dets_2_radars))
+                ellipsoid_radars = []
+                for radar in associated_dets_2_radars[key]:
+                    ellipsoid_radars.append(radar["radar"])
+                    x_tx, y_tx, z_tx = Geometry.lla2ecef(
+                        radar_dict_item[radar["radar"]]["config"]['location']['tx']['latitude'],
+                        radar_dict_item[radar["radar"]]["config"]['location']['tx']['longitude'],
+                        radar_dict_item[radar["radar"]]["config"]['location']['tx']['altitude']
+                    )
+                    x_rx, y_rx, z_rx = Geometry.lla2ecef(
+                        radar_dict_item[radar["radar"]]["config"]['location']['rx']['latitude'],
+                        radar_dict_item[radar["radar"]]["config"]['location']['rx']['longitude'],
+                        radar_dict_item[radar["radar"]]["config"]['location']['rx']['altitude']
+                    )
+                    ellipsoid = Ellipsoid(
+                        [x_tx, y_tx, z_tx],
+                        [x_rx, y_rx, z_rx],
+                        radar["radar"]
+                    )
+                    points = localisation_algorithm.sample(ellipsoid, radar["delay"]*1000, nDisplayEllipse)
+                    for i in range(len(points)):
+                        lat, lon, alt = Geometry.ecef2lla(points[i][0], points[i][1], points[i][2])
+                        if localisation_id in ["ellipsoid-parametric-mean", "ellipsoid-parametric-min"]:
+                            alt = round(alt)
+                        if localisation_id in ["ellipse-parametric-mean", "ellipse-parametric-min"]:
+                            alt = 0
+                        points[i] = ([round(lat, 3), round(lon, 3), alt])
+                    ellipsoids_for_item[radar["radar"]] = points
+        item_processing_stop_time = time.time()
+        output_for_this_item = item_config.copy()
+        output_for_this_item["timestamp_event"] = timestamp
+        output_for_this_item["truth"] = truth_adsb.get(item_config.get("adsb"), {})
+        output_for_this_item["detections_associated"] = associated_dets
+        output_for_this_item["detections_localised"] = localised_dets_for_item
+        output_for_this_item["ellipsoids"] = ellipsoids_for_item
+        output_for_this_item["time"] = item_processing_stop_time - item_processing_start_time
+        if verbose_tracker:
+            print(f"{timestamp}: Item {item_config.get('hash')} Method: {localisation_id}, Time: {output_for_this_item['time']:.4f}s", flush=True)
+        processed_api_request_outputs.append(output_for_this_item)
 
-    start_time = time.time()
+    # --- Pass 2: Update Global Tracker with all unique localised points from this scan ---
+    current_system_tracks_map = {}
+    if global_tracker:
+        if verbose_tracker:
+            print(f"{timestamp}: Updating global_tracker with {len(all_localised_points_for_tracker_input_this_scan)} unique LLA points.")
+        current_system_tracks_map = global_tracker.update_all_tracks(
+            all_localised_points_for_tracker_input_this_scan,
+            timestamp
+        )
+    serializable_system_tracks = [track.to_dict() for track in current_system_tracks_map.values()]
+    if verbose_tracker and serializable_system_tracks:
+        print(f"{timestamp}: Global System Tracks ({len(serializable_system_tracks)} generated): {[t['track_id'] for t in serializable_system_tracks]}", flush=True)
 
-    # extract dict for item
-    radar_dict_item =  {
-      key: radar_dict[key] 
-      for key in item["server"] 
-      if key in radar_dict
-    }
-
-    # associator selection
-    if item["associator"] == "adsb-associator":
-      associator = adsbAssociator
-    else:
-      print("Error: Associator invalid.")
-      return
-
-    # localisation selection
-    if item["localisation"] == "ellipse-parametric-mean":
-      localisation = ellipseParametricMean
-    elif item["localisation"] == "ellipse-parametric-min":
-      localisation = ellipseParametricMin
-    elif item["localisation"] == "ellipsoid-parametric-mean":
-      localisation = ellipsoidParametricMean
-    elif item["localisation"] == "ellipsoid-parametric-min":
-      localisation = ellipsoidParametricMin
-    elif item["localisation"] == "spherical-intersection":
-      localisation = sphericalIntersection
-    else:
-      print("Error: Localisation invalid.")
-      return
-
-    # processing
-    associated_dets = associator.process(item["server"], radar_dict_item, timestamp)
-    associated_dets_3_radars = {
-      key: value
-      for key, value in associated_dets.items()
-      if isinstance(value, list) and len(value) >= 3
-    }
-    if associated_dets_3_radars:
-      print('Detections from 3 or more radars availble.')
-      print(associated_dets_3_radars)
-    associated_dets_2_radars = {
-      key: value
-      for key, value in associated_dets.items()
-      if isinstance(value, list) and len(value) >= 2
-    }
-    localised_dets = localisation.process(associated_dets_3_radars, radar_dict_item)
-
-    if associated_dets:
-      print(associated_dets, flush=True)
-
-    # show ellipsoids of associated detections for 1 target
-    ellipsoids = {}
-    if item["localisation"] == "ellipse-parametric-mean" or \
-    item["localisation"] == "ellipsoid-parametric-mean" or \
-    item["localisation"] == "ellipse-parametric-min" or \
-    item["localisation"] == "ellipsoid-parametric-min":
-      if associated_dets_2_radars:
-        # get first target key
-        key = next(iter(associated_dets_2_radars))
-        ellipsoid_radars = []
-        for radar in associated_dets_2_radars[key]:
-          ellipsoid_radars.append(radar["radar"])
-          x_tx, y_tx, z_tx = Geometry.lla2ecef(
-            radar_dict_item[radar["radar"]]["config"]['location']['tx']['latitude'],
-            radar_dict_item[radar["radar"]]["config"]['location']['tx']['longitude'],
-            radar_dict_item[radar["radar"]]["config"]['location']['tx']['altitude']
-          )
-          x_rx, y_rx, z_rx = Geometry.lla2ecef(
-            radar_dict_item[radar["radar"]]["config"]['location']['rx']['latitude'],
-            radar_dict_item[radar["radar"]]["config"]['location']['rx']['longitude'],
-            radar_dict_item[radar["radar"]]["config"]['location']['rx']['altitude']
-          )
-          ellipsoid = Ellipsoid(
-            [x_tx, y_tx, z_tx],
-            [x_rx, y_rx, z_rx],
-            radar["radar"]
-          )
-          points = localisation.sample(ellipsoid, radar["delay"]*1000, nDisplayEllipse)
-          for i in range(len(points)):
-            lat, lon, alt = Geometry.ecef2lla(points[i][0], points[i][1], points[i][2])
-            if item["localisation"] == "ellipsoid-parametric-mean" or \
-            item["localisation"] == "ellipsoid-parametric-min":
-              alt = round(alt)
-            if item["localisation"] == "ellipse-parametric-mean" or \
-            item["localisation"] == "ellipse-parametric-min":
-              alt = 0
-            points[i] = ([round(lat, 3), round(lon, 3), alt])
-          ellipsoids[radar["radar"]] = points
-
-    stop_time = time.time()
-
-    # output data to API
-    item["timestamp_event"] = timestamp
-    item["truth"] = truth_adsb[item["adsb"]]
-    item["detections_associated"] = associated_dets
-    item["detections_localised"] = localised_dets
-    item["ellipsoids"] = ellipsoids
-    item["time"] = stop_time - start_time
-
-    print('Method: ' + item["localisation"], flush=True)
-    print(item["time"], flush=True)
-
-  # delete old API requests
-  api_event = [
-    item for item in api_event if timestamp - item["timestamp"] <= tDelete*1000]
-
-  # update API
-  api = api_event
-
-  # save to file
-  if save:
-    append_api_to_file(api)
+    # --- Pass 3: Augment each API request's output with the global system tracks & Manage API list ---
+    final_api_list_for_this_cycle = []
+    for processed_item_output in processed_api_request_outputs:
+        item_hash = processed_item_output.get("hash")
+        original_config = next((item_cfg for item_cfg in api_event_configs_this_cycle if item_cfg.get("hash") == item_hash), None)
+        if original_config and (timestamp - original_config.get("timestamp", 0) <= tDelete * 1000):
+            processed_item_output["system_tracks"] = serializable_system_tracks
+            final_api_list_for_this_cycle.append(processed_item_output)
+        elif verbose_tracker and original_config:
+            print(f"{timestamp}: API Config {item_hash} (orig_ts: {original_config.get('timestamp', 'N/A')}) timed out. Not including in final output.")
+        elif verbose_tracker and not original_config:
+            print(f"{timestamp}: Warning - Processed item {item_hash} not found in original configs for timeout check.")
+    api = final_api_list_for_this_cycle
+    if save and api:
+        append_api_to_file(api)
+    elif save and not api and verbose_tracker:
+        print(f"{timestamp}: Save is true, but 'api' list is empty. Nothing to save.")
 
 
 # event loop
@@ -273,39 +333,40 @@ def short_hash(input_string, length=10):
 
 # message received callback
 async def callback_message_received(msg):
+    global api, verbose_tracker
+    timestamp_receipt = int(time.time()*1000)
+    msg_hash = short_hash(msg)
+    output_for_client = {}
 
-  timestamp = int(time.time()*1000)
+    existing_item = next((item for item in api if item.get("hash") == msg_hash), None)
 
-  # update timestamp if API entry exists
-  for x in api:
-    if x["hash"] == short_hash(msg):
-      x["timestamp"] = timestamp
-      break
-
-  # add API entry if does not exist, split URL
-  if not any(x.get("hash") == short_hash(msg) for x in api):
-    api.append({})
-    api[-1]["hash"] = short_hash(msg)
-    url_parts = msg.split("&")
-    for part in url_parts:
-      key, value = part.split("=")
-      if key in api[-1]:
-        if not isinstance(api[-1][key], list):
-          api[-1][key] = [api[-1][key]]
-        api[-1][key].append(value)
-      else:
-        api[-1][key] = value
-    api[-1]["timestamp"] = timestamp
-    if not isinstance(api[-1]["server"], list):
-      api[-1]["server"] = [api[-1]["server"]]
-
-  # json dump
-  for item in api:
-    if item["hash"] == short_hash(msg):
-      output = json.dumps(item)
-      break
-
-  return output
+    if existing_item:
+        existing_item["timestamp"] = timestamp_receipt
+        output_for_client = json.dumps(existing_item)
+        if verbose_tracker:
+            print(f"{timestamp_receipt}: Updated timestamp for existing API config: {msg_hash}")
+    else:
+        new_api_item = {"hash": msg_hash, "timestamp": timestamp_receipt}
+        try:
+            url_parts = msg.split("&")
+            for part in url_parts:
+                key, value = part.split("=")
+                if key in new_api_item:
+                    if not isinstance(new_api_item[key], list):
+                        new_api_item[key] = [new_api_item[key]]
+                    new_api_item[key].append(value)
+                else:
+                    new_api_item[key] = value
+            if "server" in new_api_item and not isinstance(new_api_item["server"], list):
+                new_api_item["server"] = [new_api_item["server"]]
+            api.append(new_api_item)
+            output_for_client = json.dumps(new_api_item)
+            if verbose_tracker:
+                print(f"{timestamp_receipt}: Added new API config: {msg_hash} - {new_api_item}")
+        except ValueError as e:
+            print(f"Error parsing API request message '{msg}': {e}")
+            output_for_client = json.dumps({"error": "Invalid API request format", "request": msg})
+    return output_for_client
 
 # init messaging
 message_api_request = Message('event', 6969)
