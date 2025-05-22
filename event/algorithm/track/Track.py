@@ -1,12 +1,13 @@
-import time
 import numpy as np
 import uuid
+from enum import Enum, auto
 
-# Define track status constants
-TRACK_STATUS_TENTATIVE = "tentative"
-TRACK_STATUS_CONFIRMED = "confirmed"
-TRACK_STATUS_COASTING = "coasting"
-TRACK_STATUS_DELETED = "deleted"
+# Define track status as an Enum
+class TrackStatus(Enum):
+    TENTATIVE = auto()
+    CONFIRMED = auto()
+    COASTING = auto()
+    DELETED = auto()
 
 class Track:
     """
@@ -31,7 +32,7 @@ class Track:
         self.timestamp_creation_ms = timestamp_ms
         self.timestamp_update_ms = timestamp_ms
         
-        self.status = TRACK_STATUS_TENTATIVE
+        self.status = TrackStatus.TENTATIVE
         
         # History can store a list of (timestamp, state_vector, covariance_matrix) tuples
         self.history = [(timestamp_ms, self.state_vector.copy(), self.covariance_matrix.copy())]
@@ -105,16 +106,16 @@ class Track:
         self.hits += 1
         self.misses = 0 # Reset misses on successful update
         
-        if self.status == TRACK_STATUS_TENTATIVE and self.hits > 3: # Example confirmation logic
-            self.status = TRACK_STATUS_CONFIRMED
+        if self.status == TrackStatus.TENTATIVE and self.hits > 3: # Example confirmation logic
+            self.status = TrackStatus.CONFIRMED
 
     def increment_misses(self):
         """
         @brief Increments the miss counter.
         """
         self.misses += 1
-        if self.status == TRACK_STATUS_CONFIRMED and self.misses > 3: # Example coasting logic
-            self.status = TRACK_STATUS_COASTING
+        if self.status == TrackStatus.CONFIRMED and self.misses > 3: # Example coasting logic
+            self.status = TrackStatus.COASTING
         # Deletion logic based on misses would typically be in the Tracker class
 
     def increment_age(self):
@@ -154,7 +155,7 @@ class Track:
             
         return {
             "track_id": self.track_id,
-            "status": self.status,
+            "status": self.status.name,  # Use enum name for serialization
             "timestamp_creation_ms": self.timestamp_creation_ms,
             "timestamp_update_ms": self.timestamp_update_ms,
             "current_state_vector": self.state_vector.tolist(),
@@ -168,6 +169,6 @@ class Track:
         }
 
     def __repr__(self):
-        return (f"Track(ID: {self.track_id}, Status: {self.status}, "
+        return (f"Track(ID: {self.track_id}, Status: {self.status.name}, "
                 f"Pos: {self.state_vector[:3]}, LastUpdate: {self.timestamp_update_ms})")
 

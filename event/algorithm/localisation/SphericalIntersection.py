@@ -3,7 +3,6 @@
 @author 30hours
 """
 
-import math
 import numpy as np
 
 from algorithm.geometry.Geometry import Geometry

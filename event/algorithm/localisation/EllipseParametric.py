@@ -5,7 +5,6 @@
 
 import math
 import numpy as np
-import itertools
 
 from data.Ellipsoid import Ellipsoid
 from algorithm.geometry.Geometry import Geometry

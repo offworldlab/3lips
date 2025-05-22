@@ -145,6 +145,8 @@ class AdsbAssociator:
     adsb = radar_data['config']['truth']['adsb']['tar1090']
 
     api_url = os.environ.get("ADSB2DD_API_URL", "http://adsb2dd.30hours.dev/api/dd")
+    if not api_url.startswith("http://") and not api_url.startswith("https://"):
+        api_url = "http://" + api_url
 
     api_query = (
       api_url +
