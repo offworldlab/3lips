@@ -44,7 +44,6 @@ class AdsbAssociator(Associator):
 
       valid_config = radar_data[radar]["config"] is not None
       valid_detection = radar_data[radar]["detection"] is not None
-      
       if valid_config and valid_detection:
 
         # get URL for adsb2truth
@@ -62,9 +61,10 @@ class AdsbAssociator(Associator):
           continue
 
         # associate radar and truth
-        assoc_detections_radar.append(self.process_1_radar(
+        result = self.process_1_radar(
           radar, radar_data[radar]["detection"], 
-          adsb_detections, timestamp, radar_data[radar]["config"]["capture"]["fc"]))
+          adsb_detections, timestamp, radar_data[radar]["config"]["capture"]["fc"])
+        assoc_detections_radar.append(result)
 
     # associate detections between radars
     output = {}
@@ -93,11 +93,13 @@ class AdsbAssociator(Associator):
     distance_window = 10
 
     for aircraft in adsb_detections:
-
       if 'delay' in radar_detections:
-
         if 'delay' in adsb_detections[aircraft] and len(radar_detections['delay']) >= 1:
-
+          # Convert all delays/dopplers to float for closest_point
+          radar_delays = [float(x) for x in radar_detections['delay']]
+          radar_dopplers = [float(x) for x in radar_detections['doppler']]
+          adsb_delay = float(adsb_detections[aircraft]['delay'])
+          adsb_doppler = float(adsb_detections[aircraft]['doppler'])
           # extrapolate delay to current time
           # TODO extrapolate Doppler too
           for i in range(len(radar_detections['delay'])):
@@ -105,17 +107,14 @@ class AdsbAssociator(Associator):
             delay = (1000*float(radar_detections['delay'][i]) + \
             (-float(radar_detections['doppler'][i])*(299792458/fc))*delta_t)/1000
             radar_detections['delay'][i] = delay
-
           # distance from aircraft to all detections
           closest_point, distance = self.closest_point(
-            adsb_detections[aircraft]['delay'], 
-            adsb_detections[aircraft]['doppler'],
-            radar_detections['delay'],
-            radar_detections['doppler']
+            adsb_delay,
+            adsb_doppler,
+            radar_delays,
+            radar_dopplers
           )
-
           if distance < distance_window:
-
             assoc_detections[aircraft] = {
               'radar': radar,
               'delay': closest_point[0],

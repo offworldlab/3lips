@@ -218,11 +218,11 @@ window.addEventListener('load', function () {
     window.location.search).getAll('server');
   var radar_config_url = radar_names.map(
     url => `http://${url}/api/config`);
-  radar_config_url.forEach(function(url) {
+  radar_config_url = radar_config_url.map(function(url) {
     if (!is_localhost(url)) {
-      radar_config_url = radar_config_url.map(
-      url => url.replace(/^http:/, 'https:'));
+      return url.replace(/^http:/, 'https:');
     }
+    return url;
   });
   var style_radar = {};
   style_radar.color = 'rgba(0, 0, 0, 1.0)';
@@ -272,12 +272,13 @@ window.addEventListener('load', function () {
   // get truth URL
   adsb_url = new URLSearchParams(
     window.location.search).get('adsb').split('&');
-  adsb_url = adsb_url.map(
-    url => `http://${url}/data/aircraft.json`);
-  if (!is_localhost(adsb_url[0])) {
-    adsb_url = adsb_url.map(
-      url => url.replace(/^http:/, 'https:'));
-  }
+  adsb_url = adsb_url.map(function(url) {
+    const fullUrl = `http://${url}/data/aircraft.json`;
+    if (!is_localhost(fullUrl)) {
+      return fullUrl.replace(/^http:/, 'https:');
+    }
+    return fullUrl;
+  });
   adsb_url = adsb_url[0];
 
   // call event loops

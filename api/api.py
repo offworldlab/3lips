@@ -80,7 +80,7 @@ async def callback_message_received(msg):
   print(f"Callback: Received message in main.py: {msg}", flush=True)
 
 # init messaging
-message_api_request = Message('event', 6969)
+message_api_request = Message('127.0.0.1', 6969)
 
 @app.route("/")
 def index():
@@ -155,7 +155,7 @@ def serve_cesium_index():
 
 @app.route('/cesium/<path:file>')
 def serve_cesium_content(file):
-  apache_url = 'http://cesium-apache/' + file
+  apache_url = 'http://localhost:8080/' + file
   try:
     response = requests.get(apache_url)
     if response.status_code == 200:

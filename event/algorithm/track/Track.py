@@ -13,6 +13,11 @@ class Track(StoneSoupTrack):
     Extension of Stone-Soup's Track to add custom fields and logic for 3lips.
     """
     def __init__(self, *args, status=TrackStatus.TENTATIVE, filter_obj=None, adsb_info=None, last_chi_squared=None, **kwargs):
+        print(f"[TRACK] __init__ called with args: {args}, kwargs: {kwargs}")
+        # Remove custom fields before calling super().__init__
+        custom_fields = ['initial_detection', 'status', 'filter_obj', 'adsb_info', 'last_chi_squared', 'timestamp_ms', 'initial_state', 'initial_covariance']
+        for field in custom_fields:
+            kwargs.pop(field, None)
         super().__init__(*args, **kwargs)
         # Custom fields
         self.status = status
@@ -23,6 +28,18 @@ class Track(StoneSoupTrack):
         self.misses = 0  # Number of consecutive times this track was not updated with a detection
         self.age_scans = 1 # Number of scans this track has existed for
         self.associated_detections_history = []  # Detections that formed/updated this track
+
+    def update(self, detection, timestamp_ms, new_state, new_covariance):
+        """
+        Update the track's state, covariance, and history. Compatible with Tracker's update call.
+        """
+        print(f"[TRACK] update called with detection: {detection}, timestamp: {timestamp_ms}")
+        # Update state vector and covariance
+        self.state_vector = new_state
+        self.covariance_matrix = new_covariance
+        self.timestamp_update_ms = timestamp_ms
+        # Update custom fields/history
+        self.update_custom(detection)
 
     def update_custom(self, detection, status=None, adsb_info=None, last_chi_squared=None):
         """

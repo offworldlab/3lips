@@ -146,7 +146,7 @@ class EllipseParametric:
           output[target]["points"].append([
             round(samples_intersect[i][0], 3),
             round(samples_intersect[i][1], 3),
-            0])
+            round(samples_intersect[i][2], 3)])
 
     return output
 
