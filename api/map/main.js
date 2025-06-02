@@ -285,6 +285,7 @@ window.addEventListener('load', function () {
   event_adsb();
   event_radar();
   event_ellipsoid();
+  event_tracks();
 
 })
 

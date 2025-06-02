@@ -100,14 +100,19 @@ global_tracker = Tracker(config=tracker_config_params)
 async def event():
     global api, save, global_tracker
     timestamp = int(time.time()*1000)
-    api_event_configs_this_cycle = copy.deepcopy(api)
 
-    if not api_event_configs_this_cycle:
+    if not api:
         if verbose_tracker:
             print(f"{timestamp}: No active API requests. Tracker will predict only.")
         if global_tracker:
             _ = global_tracker.update_all_tracks([], timestamp)
         return
+
+    # Collect all API request configurations for this cycle
+    api_event_configs_this_cycle = [c for c in api if (timestamp - c.get("timestamp", 0) <= tDelete * 1000)]
+    print(f"DEBUG: Found {len(api_event_configs_this_cycle)} API configs for processing")
+    for i, config in enumerate(api_event_configs_this_cycle):
+        print(f"DEBUG: Config {i}: hash={config.get('hash')}, adsb={config.get('adsb')}, timestamp={config.get('timestamp')}")
 
     # 1. Aggregate unique radar names
     radar_names = []
@@ -157,8 +162,12 @@ async def event():
     for item in api_event_configs_this_cycle:
         adsb_urls.append(item["adsb"])
     adsb_urls = list(set(adsb_urls))
+    print(f"DEBUG: Processing {len(adsb_urls)} unique ADS-B URLs: {adsb_urls}")
     for url in adsb_urls:
-        truth_adsb[url] = adsbTruth.process(url)
+        print(f"DEBUG: Calling adsbTruth.process({url})")
+        result = adsbTruth.process(url)
+        print(f"DEBUG: adsbTruth.process returned: {type(result)}, content: {result}")
+        truth_adsb[url] = result
 
     # --- Processing Starts ---
     all_localised_points_for_tracker_input_this_scan = []
@@ -289,11 +298,16 @@ async def event():
     # --- Pass 2: Update Global Tracker with all unique localised points from this scan ---
     current_system_tracks_map = {}
     if global_tracker:
+        # Convert ADS-B truth data to tracker format
+        all_adsb_detections_for_tracker = convert_adsb_truth_to_tracker_format(truth_adsb, timestamp)
+        
         if verbose_tracker:
-            print(f"{timestamp}: Updating global_tracker with {len(all_localised_points_for_tracker_input_this_scan)} unique LLA points.")
+            print(f"{timestamp}: Updating global_tracker with {len(all_localised_points_for_tracker_input_this_scan)} unique radar points and {len(all_adsb_detections_for_tracker)} ADS-B detections.")
+        
         current_system_tracks_map = global_tracker.update_all_tracks(
             all_localised_points_for_tracker_input_this_scan,
-            timestamp
+            timestamp,
+            adsb_detections_lla=all_adsb_detections_for_tracker
         )
     serializable_system_tracks = [track.to_dict() for track in current_system_tracks_map.values()]
     if verbose_tracker and serializable_system_tracks:
@@ -317,6 +331,48 @@ async def event():
     elif save and not api and verbose_tracker:
         print(f"{timestamp}: Save is true, but 'api' list is empty. Nothing to save.")
 
+def convert_adsb_truth_to_tracker_format(truth_adsb, timestamp_ms):
+    """
+    Convert ADS-B truth data to tracker-compatible format.
+    @param truth_adsb (dict): ADS-B truth data from adsbTruth.process()
+    @param timestamp_ms (int): Current timestamp in milliseconds
+    @return (list): List of ADS-B detection dicts for tracker input
+    """
+    adsb_detections = []
+    
+    for url, aircraft_dict in truth_adsb.items():
+        for hex_code, aircraft_data in aircraft_dict.items():
+            try:
+                lat = aircraft_data.get('lat')
+                lon = aircraft_data.get('lon') 
+                alt = aircraft_data.get('alt')
+                flight = aircraft_data.get('flight')
+                adsb_timestamp = aircraft_data.get('timestamp', timestamp_ms / 1000)
+                
+                if lat is not None and lon is not None and alt is not None:
+                    adsb_detection = {
+                        'lla_position': [lat, lon, alt],
+                        'timestamp_ms': int(adsb_timestamp * 1000),
+                        'source_api_hash': f"adsb_{url}",
+                        'source_target_id': hex_code,
+                        'adsb_info': {
+                            'hex': hex_code,
+                            'flight': flight,
+                            'url': url,
+                            'original_timestamp': adsb_timestamp
+                        }
+                    }
+                    adsb_detections.append(adsb_detection)
+                    
+            except Exception as e:
+                if verbose_tracker:
+                    print(f"Error converting ADS-B aircraft {hex_code} to tracker format: {e}")
+                continue
+    
+    if verbose_tracker and adsb_detections:
+        print(f"{timestamp_ms}: Converted {len(adsb_detections)} ADS-B aircraft to tracker format")
+    
+    return adsb_detections
 
 # event loop
 async def main():

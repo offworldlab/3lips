@@ -153,9 +153,10 @@ class Tracker:
         
         return associations, unassociated_track_ids, unassociated_measurement_indices
 
-    def _initiate_new_track(self, measurement_pos_ecef, measurement_cov_ecef_pos, original_detection_data, timestamp_ms):
+    def _initiate_new_track(self, measurement_pos_ecef, measurement_cov_ecef_pos, original_detection_data, timestamp_ms, status=TrackStatus.TENTATIVE):
         """
-        @brief Initiates a new tentative track from an unassociated measurement.
+        @brief Initiates a new track from an unassociated measurement.
+        @param status: Track status to initialize with (TENTATIVE for radar, CONFIRMED for ADS-B)
         """
         # Use UUID from Track class by default
         # track_id = self._generate_track_id() # Not needed if Track class handles UUID
@@ -183,9 +184,14 @@ class Tracker:
         if hasattr(initial_state, 'covar'):
             initial_state.covar = initial_cov_ecef
         
+        # Extract ADS-B info if available
+        adsb_info = original_detection_data.get('adsb_info', None)
+        
         new_track = Track(
             initial_detection=original_detection_data,
-            timestamp_ms=timestamp_ms
+            timestamp_ms=timestamp_ms,
+            status=status,
+            adsb_info=adsb_info
         )
         
         # Add the initial state to the track
@@ -193,7 +199,8 @@ class Tracker:
 
         self.active_tracks[new_track.id] = new_track
         if self.config["verbose"]:
-            print(f"Initiated new track: {new_track.id} at ECEF {measurement_pos_ecef}")
+            track_type = "ADS-B confirmed" if status == TrackStatus.CONFIRMED else "radar tentative"
+            print(f"Initiated new {track_type} track: {new_track.id} at ECEF {measurement_pos_ecef}")
 
     def _manage_track_lifecycle(self):
         """
@@ -218,12 +225,12 @@ class Tracker:
                      print(f"Deleted Track {track_id}.")
 
 
-    def update_all_tracks(self, all_localised_detections_lla, current_timestamp_ms):
+    def update_all_tracks(self, all_localised_detections_lla, current_timestamp_ms, adsb_detections_lla=None):
         """
         @brief Main entry point to update all tracks with new localised detections.
-        @param all_localised_detections_lla (list): List of detection dicts, each with 'lla_position'.
-                                                    Example: [{'lla_position': [-34.9, 138.6, 1000.0], 'timestamp_ms': ..., 'source_radar': ...}, ...]
+        @param all_localised_detections_lla (list): List of radar detection dicts, each with 'lla_position'.
         @param current_timestamp_ms (float): The current processing timestamp in milliseconds.
+        @param adsb_detections_lla (list, optional): List of ADS-B detection dicts with 'lla_position' and 'adsb_info'.
         @return (dict): A dictionary of active Track objects {track_id: Track_object}.
         """
         if self.last_timestamp_ms is None:
@@ -240,51 +247,81 @@ class Tracker:
         # 1. Predict existing tracks to current time
         predicted_tracks_map = self._predict_tracks(dt_seconds)
 
-        # 2. Convert incoming LLA detections to ECEF measurements for the tracker
+        # 2. Handle ADS-B detections first (create confirmed tracks or update existing ones)
+        if adsb_detections_lla:
+            adsb_measurements = self._convert_localised_detections_to_measurements(adsb_detections_lla)
+            
+            if self.config["verbose"]:
+                print(f"Processing {len(adsb_measurements)} ADS-B measurements...")
+            
+            # Associate ADS-B detections with existing tracks (preferring ADS-B tracks)
+            adsb_associations, unassoc_adsb_track_ids, unassoc_adsb_meas_indices = \
+                self._data_association(predicted_tracks_map, adsb_measurements)
+            
+            if self.config["verbose"]:
+                print(f"ADS-B associations: {len(adsb_associations)}, unassociated measurements: {len(unassoc_adsb_meas_indices)}")
+            
+            # Update tracks associated with ADS-B detections
+            for track_id, meas_idx in adsb_associations.items():
+                if track_id not in self.active_tracks: continue
+                
+                track = self.active_tracks[track_id]
+                measurement_pos_ecef, measurement_cov_ecef_pos, original_detection_data = adsb_measurements[meas_idx]
+                
+                if self.config["verbose"]:
+                    adsb_hex = original_detection_data.get('adsb_info', {}).get('hex', 'unknown')
+                    print(f"Updating track {track_id} with ADS-B detection from aircraft {adsb_hex}")
+                
+                # Simplified update for ADS-B (high confidence)
+                alpha = 0.8  # Higher weight for ADS-B measurements
+                updated_state_pos = (1 - alpha) * track.state_vector[:3] + alpha * measurement_pos_ecef
+                updated_state = np.concatenate((updated_state_pos, track.state_vector[3:]))
+                updated_covariance = track.covariance_matrix.copy()
+                updated_covariance[:3,:3] = np.minimum(track.covariance_matrix[:3,:3], measurement_cov_ecef_pos) * (1-alpha/2)
+
+                track.update(
+                    detection=original_detection_data,
+                    timestamp_ms=original_detection_data.get('timestamp_ms', current_timestamp_ms),
+                    new_state=updated_state,
+                    new_covariance=updated_covariance
+                )
+                track.increment_age()
+                
+                # Update ADS-B info
+                if 'adsb_info' in original_detection_data:
+                    track.adsb_info = original_detection_data['adsb_info']
+            
+            # Create confirmed tracks for unassociated ADS-B detections
+            for meas_idx in unassoc_adsb_meas_indices:
+                measurement_pos_ecef, measurement_cov_ecef_pos, original_detection_data = adsb_measurements[meas_idx]
+                adsb_hex = original_detection_data.get('adsb_info', {}).get('hex', 'unknown')
+                if self.config["verbose"]:
+                    print(f"Creating new CONFIRMED track for unassociated ADS-B aircraft {adsb_hex}")
+                
+                self._initiate_new_track(
+                    measurement_pos_ecef,
+                    measurement_cov_ecef_pos,
+                    original_detection_data,
+                    original_detection_data.get('timestamp_ms', current_timestamp_ms),
+                    status=TrackStatus.CONFIRMED  # ADS-B tracks start as confirmed
+                )
+
+        # 3. Convert radar detections to measurements
         measurements = self._convert_localised_detections_to_measurements(all_localised_detections_lla)
 
-        # 3. Data Association
+        # 4. Data Association for radar detections
         associations, unassociated_track_ids, unassociated_measurement_indices = \
             self._data_association(predicted_tracks_map, measurements)
 
-        # 4. Update Associated Tracks
+        # 5. Update Associated Tracks with radar detections
         for track_id, meas_idx in associations.items():
             if track_id not in self.active_tracks: continue # Should not happen if predicted_tracks_map is from active_tracks
             
             track = self.active_tracks[track_id]
             measurement_pos_ecef, measurement_cov_ecef_pos, original_detection_data = measurements[meas_idx]
             
-            # --- Proper Kalman Filter Update (Conceptual) ---
-            # if track.filter:
-            #     try:
-            #         # The measurement vector 'z' for the filter should match its dim_z
-            #         # Assuming KF measures position [x,y,z]
-            #         track.filter.update(z=measurement_pos_ecef, R=measurement_cov_ecef_pos)
-            #         updated_state = track.filter.x
-            #         updated_covariance = track.filter.P
-            #         track.update(
-            #             detection=original_detection_data,
-            #             timestamp_ms=original_detection_data.get('timestamp_ms', current_timestamp_ms),
-            #             new_state=updated_state,
-            #             new_covariance=updated_covariance
-            #         )
-            #     except Exception as e:
-            #         print(f"Error updating track {track_id} with KF: {e}")
-            #         track.increment_misses() # Treat KF update error as a miss
-            # else:
-            #     # Fallback if no filter (very basic update - not recommended for production)
-            #     # This is a crude way to incorporate the measurement.
-            #     track.state_vector[:3] = measurement_pos_ecef 
-            #     track.covariance_matrix[:3,:3] = measurement_cov_ecef_pos 
-            #     track.timestamp_update_ms = original_detection_data.get('timestamp_ms', current_timestamp_ms)
-            #     track.hits +=1
-            #     track.misses = 0
-            # --- End KF Placeholder ---
-
-            # --- Simplified update for now (without explicit KF object call) ---
-            # This blends predicted position with measurement. Velocity remains from prediction.
-            # This is NOT a proper Kalman update.
-            alpha = 0.6 # Blending factor, higher alpha gives more weight to measurement
+            # Simplified update - lower weight for radar measurements
+            alpha = 0.6 if track.adsb_info is None else 0.4  # Lower weight if track has ADS-B info
             updated_state_pos = (1 - alpha) * track.state_vector[:3] + alpha * measurement_pos_ecef
             updated_state = np.concatenate((updated_state_pos, track.state_vector[3:])) # Keep predicted velocity
             # Simplified covariance update: assume measurement reduces uncertainty
@@ -297,28 +334,81 @@ class Tracker:
                 new_state=updated_state,
                 new_covariance=updated_covariance
             )
-            # --- End simplified update ---
             
             track.increment_age()
 
-        # 5. Handle Unassociated Tracks (increment misses)
+        # 6. Handle Unassociated Tracks (increment misses)
         for track_id in unassociated_track_ids:
             if track_id in self.active_tracks:
                 self.active_tracks[track_id].increment_misses()
                 self.active_tracks[track_id].increment_age()
 
-        # 6. Handle Unassociated Measurements (initiate new tracks)
+        # 7. Handle Unassociated Radar Measurements (initiate new tentative tracks)
         for meas_idx in unassociated_measurement_indices:
             measurement_pos_ecef, measurement_cov_ecef_pos, original_detection_data = measurements[meas_idx]
             self._initiate_new_track(
                 measurement_pos_ecef,
                 measurement_cov_ecef_pos,
                 original_detection_data,
-                original_detection_data.get('timestamp_ms', current_timestamp_ms)
+                original_detection_data.get('timestamp_ms', current_timestamp_ms),
+                status=TrackStatus.TENTATIVE  # Radar tracks start as tentative
             )
-            # New tracks also implicitly have their age incremented by their constructor or first update.
 
-        # 7. Manage Track Lifecycle (confirm tentative, delete old)
+        # 8. Manage Track Lifecycle (confirm tentative, delete old)
         self._manage_track_lifecycle()
 
+        # 9. Log comprehensive track states
+        if self.config["verbose"]:
+            self._log_all_track_states(current_timestamp_ms)
+
         return self.active_tracks.copy() # Return a copy
+
+    def _log_all_track_states(self, timestamp_ms):
+        """
+        Log detailed state information for all active tracks.
+        """
+        if not self.active_tracks:
+            print(f"[TRACKER {timestamp_ms}] No active tracks")
+            return
+        
+        print(f"[TRACKER {timestamp_ms}] === TRACK SUMMARY ({len(self.active_tracks)} active) ===")
+        
+        adsb_tracks = []
+        radar_tracks = []
+        
+        for track_id, track in self.active_tracks.items():
+            track_info = {
+                'id': track_id,
+                'status': track.status.name,
+                'hits': track.hits,
+                'misses': track.misses,
+                'age': track.age_scans,
+                'pos': track.state_vector[:3] if track.state_vector is not None else None,
+                'vel': track.state_vector[3:6] if track.state_vector is not None and len(track.state_vector) >= 6 else None,
+                'adsb': track.adsb_info
+            }
+            
+            if track.adsb_info:
+                adsb_tracks.append(track_info)
+            else:
+                radar_tracks.append(track_info)
+        
+        # Log ADS-B tracks
+        if adsb_tracks:
+            print(f"[TRACKER {timestamp_ms}] ADS-B TRACKS ({len(adsb_tracks)}):")
+            for track in adsb_tracks:
+                flight_info = track['adsb']['flight'] if track['adsb'] and track['adsb'].get('flight') else track['adsb']['hex'] if track['adsb'] else 'N/A'
+                pos_str = f"[{track['pos'][0]:.1f}, {track['pos'][1]:.1f}, {track['pos'][2]:.1f}]" if track['pos'] is not None else "N/A"
+                vel_str = f"[{track['vel'][0]:.1f}, {track['vel'][1]:.1f}, {track['vel'][2]:.1f}]" if track['vel'] is not None else "N/A"
+                print(f"  ✈️  {track['id']} ({flight_info}) - {track['status']} - Pos: {pos_str} - Vel: {vel_str} - H:{track['hits']} M:{track['misses']} A:{track['age']}")
+        
+        # Log radar tracks
+        if radar_tracks:
+            print(f"[TRACKER {timestamp_ms}] RADAR TRACKS ({len(radar_tracks)}):")
+            for track in radar_tracks:
+                pos_str = f"[{track['pos'][0]:.1f}, {track['pos'][1]:.1f}, {track['pos'][2]:.1f}]" if track['pos'] is not None else "N/A"
+                vel_str = f"[{track['vel'][0]:.1f}, {track['vel'][1]:.1f}, {track['vel'][2]:.1f}]" if track['vel'] is not None else "N/A"
+                status_icon = '🎯' if track['status'] == 'CONFIRMED' else '⚡' if track['status'] == 'COASTING' else '❓'
+                print(f"  {status_icon}  {track['id']} - {track['status']} - Pos: {pos_str} - Vel: {vel_str} - H:{track['hits']} M:{track['misses']} A:{track['age']}")
+        
+        print(f"[TRACKER {timestamp_ms}] === END TRACK SUMMARY ===")

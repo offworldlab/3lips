@@ -23,11 +23,108 @@
       padding: 0;
       overflow: hidden;
     }
+
+    #trackLegend {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      z-index: 1000;
+      min-width: 200px;
+    }
+
+    #trackLegend h4 {
+      margin: 0 0 10px 0;
+      text-align: center;
+      border-bottom: 1px solid #444;
+      padding-bottom: 5px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin: 5px 0;
+    }
+
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+
+    .track-stats {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #444;
+    }
+
+    .track-toggle {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #444;
+    }
+
+    .track-toggle button {
+      background: #444;
+      color: white;
+      border: 1px solid #666;
+      padding: 5px 10px;
+      margin: 2px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 11px;
+    }
+
+    .track-toggle button:hover {
+      background: #555;
+    }
+
+    .track-toggle button.active {
+      background: #007acc;
+    }
   </style>
 </head>
 
 <body>
   <div id="cesiumContainer"></div>
+  
+  <!-- Track Legend Panel -->
+  <div id="trackLegend">
+    <h4>🎯 Track Legend</h4>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: rgb(255, 0, 255);"></div>
+      <span>✈️ ADS-B Tracks (Confirmed)</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: rgb(0, 128, 255);"></div>
+      <span>🎯 Confirmed Tracks</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: rgb(255, 165, 0);"></div>
+      <span>❓ Tentative Tracks</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: rgb(128, 128, 128);"></div>
+      <span>⚡ Coasting Tracks</span>
+    </div>
+    <div class="track-stats">
+      <div><strong>Active Tracks:</strong> <span id="trackCount">0</span></div>
+      <div><strong>ADS-B:</strong> <span id="adsbCount">0</span></div>
+      <div><strong>Radar:</strong> <span id="radarCount">0</span></div>
+    </div>
+    <div class="track-toggle">
+      <button id="toggleTracks" class="active">Show Tracks</button>
+      <button id="togglePaths" class="active">Show Paths</button>
+      <button id="toggleLabels" class="active">Show Labels</button>
+    </div>
+  </div>
+
   <script>
     // Get config from URL parameters
     const urlParams = new URLSearchParams(window.location.search);
@@ -46,6 +143,7 @@
   <script src="event/adsb.js"></script>
   <script src="event/radar.js"></script>
   <script src="event/ellipsoid.js"></script>
+  <script src="event/tracks.js"></script>
   <script src="main.js"></script>
 </body>
 

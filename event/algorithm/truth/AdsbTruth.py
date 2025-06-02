@@ -63,12 +63,16 @@ class AdsbTruth:
 
         # store relevant data
         if adsb:
+            print(f"DEBUG: Processing {len(adsb['aircraft'])} aircraft from ADS-B data")
             # loop over aircraft
             for aircraft in adsb["aircraft"]:
-                if aircraft.get("seen_pos") and \
+                print(f"DEBUG: Aircraft hex={aircraft.get('hex')}, seen_pos={aircraft.get('seen_pos')}, alt_geom={aircraft.get('alt_geom')}, flight={aircraft.get('flight')}, limit={self.seen_pos_limit}")
+                
+                if aircraft.get("seen_pos") is not None and \
                     aircraft.get("alt_geom") and \
                     aircraft.get("flight") and \
                     aircraft.get("seen_pos") < self.seen_pos_limit:
+                        print(f"DEBUG: Adding aircraft {aircraft['hex']} to output")
                         output[aircraft["hex"]] = {}
                         output[aircraft["hex"]]["lat"] = aircraft["lat"]
                         output[aircraft["hex"]]["lon"] = aircraft["lon"]
@@ -76,4 +80,7 @@ class AdsbTruth:
                         output[aircraft["hex"]]["flight"] = aircraft["flight"]
                         output[aircraft["hex"]]["timestamp"] = \
                           adsb["now"] - aircraft["seen_pos"]
+                else:
+                    print(f"DEBUG: Rejecting aircraft {aircraft.get('hex')} - conditions not met")
+            print(f"DEBUG: Final output contains {len(output)} aircraft")
         return output

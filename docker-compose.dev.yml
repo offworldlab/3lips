@@ -1,0 +1,80 @@
+version: '3'
+
+networks:
+  3lips:
+  adsb-network:
+    external: true
+
+services:
+
+  api:
+    extends:
+      file: docker-compose.yml
+      service: api
+    volumes:
+      - ./config:/app/config
+      - ./common:/app/common
+      # Enhanced hot-reloading for development
+      - ./api:/app/api:ro
+      - ./api/map:/app/api/map:ro
+      - ./api/public:/app/api/public:ro
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - PYTHONUNBUFFERED=1
+      - SEND_FILE_MAX_AGE_DEFAULT=0 # Disable static file caching
+    command: [ "python3", "-u", "-m", "flask", "run", "--host=0.0.0.0", "--port=8080", "--reload" ]
+
+  event:
+    extends:
+      file: docker-compose.yml
+      service: event
+    volumes:
+      - ./config:/app/config
+      - ./common:/app/common
+      - ./test:/app/test
+      - ./save:/app/save
+      # Enhanced hot-reloading for development
+      - ./event:/app/event:ro
+      - ./event/algorithm:/app/event/algorithm:ro
+    environment:
+      - TRACKER_VERBOSE=true
+      - PYTHONUNBUFFERED=1
+    # For Python file watching (optional - requires watchdog in container)
+    # command: ["python3", "-u", "-m", "watchdog", "tricks.auto_restart", "--patterns=*.py", "--restart-cmd=python3 /app/event/event.py"]
+
+  cesium-apache:
+    extends:
+      file: docker-compose.yml
+      service: cesium-apache
+    volumes:
+      # Hot-reloading: Mount all static content
+      - ./api/map:/var/www/html/map:ro
+      - ./api/public:/var/www/html/public:ro
+      - ./cesium/Build:/var/www/html/cesium:ro
+    environment:
+      - APACHE_ENV=development
+      # Apache development settings
+      - APACHE_LOG_LEVEL=debug
+    # Optional: Custom Apache config for development
+    # - ./dev-configs/apache-dev.conf:/etc/apache2/sites-available/000-default.conf:ro
+
+    # Optional: Add a file watcher service for Python files
+    # Uncomment if you want automatic Python process restarting
+    # python-watcher:
+    #   image: python:3.9-slim
+    #   volumes:
+    #     - ./event:/app/event:ro
+    #     - ./api:/app/api:ro
+    #   working_dir: /app
+    #   command: |
+    #     bash -c "
+    #       pip install watchdog &&
+    #       python3 -m watchdog tricks.shell_command \
+    #         --patterns='*.py' \
+    #         --command='docker-compose restart event api' \
+    #         /app
+    #     "
+    #   depends_on:
+    #     - event
+    #     - api 
