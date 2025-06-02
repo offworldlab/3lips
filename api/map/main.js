@@ -163,6 +163,8 @@ if (cesiumCredit) {
       point: {
           color: Cesium.Color.fromCssColorString(pointColor),
           pixelSize: pointSize,
+          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
       label: (type === "radar") ? {
           text: pointName,
