@@ -1,0 +1,91 @@
+[tool.bandit]
+exclude_dirs = ["tests", "test"]
+skips = ["B101", "B601", "B113"]
+
+[tool.bandit.assert_used]
+skips = ["*_test.py", "*test*.py"]
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "3lips"
+version = "0.1.0"
+description = "Target localisation for multi-static radar using ellipse intersections"
+authors = [{name = "30hours", email = ""}]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = []
+
+[tool.ruff]
+line-length = 88
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "C90", "I", "UP", "B", "C4", "PIE", "RUF"]
+ignore = [
+    "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107",
+    "ANN001", "ANN002", "ANN003", "ANN101", "ANN102", "ANN201", "ANN202", "ANN204", "ANN205", "ANN206",
+    "T201", "T203",  # Allow print statements
+    "PLW1508",       # Allow non-string environment variable defaults
+    "E501",          # Ignore line length for now
+    "S101",          # Allow assert statements
+    "BLE001",        # Allow broad exception catching
+    "TRY003",        # Allow long exception messages
+    "PLR0913",       # Allow many arguments
+    "PLR0912",       # Allow many branches
+    "PLR0915",       # Allow many statements
+    "PLR2004",       # Allow magic values
+    "C901",          # Allow complex functions
+    "N803",          # Allow non-lowercase argument names
+    "N805",          # Allow first argument not named self (for static methods)
+    "N806",          # Allow non-lowercase variables in functions
+    "N999",          # Allow invalid module names
+    "B904",          # Allow raising exceptions without from clause
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"test_*.py" = ["S101", "ANN201", "ANN001"]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --strict-markers"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests"
+]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = false
+warn_unused_configs = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+disallow_untyped_decorators = false
+no_implicit_optional = false
+warn_redundant_casts = false
+warn_unused_ignores = false
+warn_no_return = false
+warn_unreachable = false
+strict_equality = false
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "requests.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "numpy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "stonesoup.*"
+ignore_missing_imports = true

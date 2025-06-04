@@ -1,15 +1,16 @@
-"""
-@file AdsbTruth.py
+"""@file AdsbTruth.py
 @author 30hours
 """
 
-import requests
 import ipaddress
+
+import requests
+
 
 def is_localhost(server):
     try:
         # Remove port if present
-        host = server.split(':')[0]
+        host = server.split(":")[0]
         # Try to parse as IP address
         ip = ipaddress.ip_address(host)
         return ip.is_loopback or ip.is_private
@@ -17,37 +18,29 @@ def is_localhost(server):
         # Not an IP, check for 'localhost'
         return host.startswith("localhost")
 
-class AdsbTruth:
 
-    """
-    @class AdsbTruth
+class AdsbTruth:
+    """@class AdsbTruth
     @brief A class for storing ADS-B truth in the API response.
     @details Uses truth data in delay-Doppler space from an tar1090 server.
     """
 
     def __init__(self, seen_pos_limit):
-
-        """
-        @brief Constructor for the AdsbTruth class.
-        """
-
+        """@brief Constructor for the AdsbTruth class."""
         self.seen_pos_limit = seen_pos_limit
 
     def process(self, server):
-
-        """
-        @brief Store ADS-B truth for each target in LLA.
+        """@brief Store ADS-B truth for each target in LLA.
         @param server (str): The tar1090 server to get truth from.
         @return dict: Associated detections by [hex].
         """
-
         output = {}
 
         # Check if server is on local network
         if is_localhost(server):
-            url = 'http://' + server + '/data/aircraft.json'
+            url = "http://" + server + "/data/aircraft.json"
         else:
-            url = 'https://' + server + '/data/aircraft.json'
+            url = "https://" + server + "/data/aircraft.json"
 
         print(f"Getting truth from {url}")
 
@@ -66,21 +59,28 @@ class AdsbTruth:
             print(f"DEBUG: Processing {len(adsb['aircraft'])} aircraft from ADS-B data")
             # loop over aircraft
             for aircraft in adsb["aircraft"]:
-                print(f"DEBUG: Aircraft hex={aircraft.get('hex')}, seen_pos={aircraft.get('seen_pos')}, alt_geom={aircraft.get('alt_geom')}, flight={aircraft.get('flight')}, limit={self.seen_pos_limit}")
-                
-                if aircraft.get("seen_pos") is not None and \
-                    aircraft.get("alt_geom") and \
-                    aircraft.get("flight") and \
-                    aircraft.get("seen_pos") < self.seen_pos_limit:
-                        print(f"DEBUG: Adding aircraft {aircraft['hex']} to output")
-                        output[aircraft["hex"]] = {}
-                        output[aircraft["hex"]]["lat"] = aircraft["lat"]
-                        output[aircraft["hex"]]["lon"] = aircraft["lon"]
-                        output[aircraft["hex"]]["alt"] = aircraft["alt_geom"]
-                        output[aircraft["hex"]]["flight"] = aircraft["flight"]
-                        output[aircraft["hex"]]["timestamp"] = \
-                          adsb["now"] - aircraft["seen_pos"]
+                print(
+                    f"DEBUG: Aircraft hex={aircraft.get('hex')}, seen_pos={aircraft.get('seen_pos')}, alt_geom={aircraft.get('alt_geom')}, flight={aircraft.get('flight')}, limit={self.seen_pos_limit}",
+                )
+
+                if (
+                    aircraft.get("seen_pos") is not None
+                    and aircraft.get("alt_geom")
+                    and aircraft.get("flight")
+                    and aircraft.get("seen_pos") < self.seen_pos_limit
+                ):
+                    print(f"DEBUG: Adding aircraft {aircraft['hex']} to output")
+                    output[aircraft["hex"]] = {}
+                    output[aircraft["hex"]]["lat"] = aircraft["lat"]
+                    output[aircraft["hex"]]["lon"] = aircraft["lon"]
+                    output[aircraft["hex"]]["alt"] = aircraft["alt_geom"]
+                    output[aircraft["hex"]]["flight"] = aircraft["flight"]
+                    output[aircraft["hex"]]["timestamp"] = (
+                        adsb["now"] - aircraft["seen_pos"]
+                    )
                 else:
-                    print(f"DEBUG: Rejecting aircraft {aircraft.get('hex')} - conditions not met")
+                    print(
+                        f"DEBUG: Rejecting aircraft {aircraft.get('hex')} - conditions not met",
+                    )
             print(f"DEBUG: Final output contains {len(output)} aircraft")
         return output

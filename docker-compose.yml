@@ -1,9 +1,11 @@
-version: '3'
+version: '3.8'
 
 networks:
   3lips:
-  adsb-network:
+    driver: bridge
+  retina-network:
     external: true
+    name: retina-network
 
 services:
 
@@ -13,13 +15,18 @@ services:
       context: .
       dockerfile: ./api/Dockerfile
     image: 3lips-api
-    network_mode: host
+    ports:
+      - "5000:5000"
+    networks:
+      - 3lips
     volumes:
       - ./config:/app/config
       - ./common:/app/common
     container_name: 3lips-api
     env_file:
       - .env
+    depends_on:
+      - event
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -29,7 +36,9 @@ services:
       context: ./event
       dockerfile: Dockerfile
     image: 3lips-event
-    network_mode: host
+    networks:
+      - 3lips
+      - retina-network
     volumes:
       - ./config:/app/config
       - ./common:/app/common
@@ -47,7 +56,10 @@ services:
       context: ./cesium
       dockerfile: Dockerfile
     image: cesium-apache
-    network_mode: host
+    ports:
+      - "8080:8080"
+    networks:
+      - 3lips
     container_name: 3lips-cesium
     env_file:
       - .env

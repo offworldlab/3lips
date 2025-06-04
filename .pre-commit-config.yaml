@@ -1,0 +1,83 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.9 # Use the latest stable version
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.15.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          [
+            "fastapi>=0.110.0",
+            "pydantic-settings>=2.2.1",
+            "pydantic>=2.6.3",
+            "python-dotenv>=1.0.1",
+            "python-json-logger>=2.0.7",
+            "types-requests",
+          ]
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.3
+    hooks:
+      - id: bandit
+        args: ["-c", "pyproject.toml", "-x", "tests"]
+        additional_dependencies: ["bandit[toml]"]
+
+  - repo: https://github.com/returntocorp/semgrep
+    rev: v1.89.0
+    hooks:
+      - id: semgrep
+        args: ["--config", "p/ci"]
+
+  - repo: https://github.com/Lucas-C/pre-commit-hooks-safety
+    rev: v1.4.2
+    hooks:
+      - id: python-safety-dependencies-check
+        files: requirements.txt
+        args: ["--continue-on-error"]
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]
+        exclude: ^tests/
+
+  - repo: local
+    hooks:
+      - id: trivy-scan
+        name: Trivy security scan
+        entry: .pre-commit-hooks/trivy-scan.sh
+        language: script
+        files: Dockerfile|requirements\.txt
+        pass_filenames: false
+
+      - id: pytest
+        name: Run unit tests
+        entry: pytest
+        language: python
+        types: [python]
+        pass_filenames: false
+        args: ["-v"]
+        additional_dependencies:
+          [
+            "boto3>=1.34.0",
+            "email-validator>=2.0.0",
+            "fastapi>=0.110.0",
+            "httpx>=0.27.0",
+            "litellm>=1.30.3",
+            "pydantic-settings>=2.2.1",
+            "pydantic>=2.6.3",
+            "pytest-asyncio>=0.23.5",
+            "pytest-cov>=4.1.0",
+            "pytest>=8.0.0",
+            "python-dotenv>=1.0.1",
+            "python-json-logger>=2.0.7",
+            "python-multipart>=0.0.11,<0.0.12",
+            "slowapi>=0.1.9",
+            "PyJWT>=2.0.0",
+          ]
