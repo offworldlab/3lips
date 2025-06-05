@@ -18,30 +18,42 @@ class TestAssociation:
         self.tracker = Tracker(config)
 
     def test_detection_to_track_association(self):
-        """Test that multiple detections in same area create and update tracks"""
+        """Test that nearby detections associate to existing tracks instead of creating new ones"""
 
-        # Send detection at same location twice - should create one track
-        same_location_detections = [
-            {"timestamp_ms": 1000, "lla_position": [-34.9286, 138.5999, 1000]},
-            {
-                "timestamp_ms": 1000,
-                "lla_position": [-34.9286, 138.5999, 1000],
-            },  # Exact same
+        # Create initial track
+        initial_detection = [
+            {"timestamp_ms": 1000, "lla_position": [-34.9286, 138.5999, 1000]}
         ]
 
         tracks = self.tracker.update_all_tracks(
-            all_localised_detections_lla=same_location_detections,
+            all_localised_detections_lla=initial_detection,
             current_timestamp_ms=1000,
         )
 
-        # Should create tracks - the exact behavior depends on implementation
-        # but we're testing that tracks are created correctly
-        assert len(tracks) >= 1
+        assert len(tracks) == 1
+        track_id = next(iter(tracks.keys()))
+        initial_track = tracks[track_id]
+        assert initial_track.hits == 1
 
-        # All tracks should be tentative initially
-        for track in tracks.values():
-            assert track.status == TrackStatus.TENTATIVE
-            assert track.hits >= 1
+        # Send nearby detection that should associate to existing track
+        nearby_detection = [
+            {
+                "timestamp_ms": 2000,
+                "lla_position": [-34.9290, 138.6000, 1050],
+            }  # 400m away
+        ]
+
+        tracks = self.tracker.update_all_tracks(
+            all_localised_detections_lla=nearby_detection,
+            current_timestamp_ms=2000,
+        )
+
+        # Should still have one track (associated, not created new)
+        assert len(tracks) == 1
+        assert track_id in tracks
+        updated_track = tracks[track_id]
+        assert updated_track.hits == 2  # Should have incremented hits
+        assert updated_track.misses == 0  # Should not have missed
 
     def test_distant_detection_creates_new_track(self):
         """Test that distant detections create new tracks"""
@@ -126,3 +138,37 @@ class TestAssociation:
         # Should have multiple tracks since only one detection can associate per track
         # (or the closest one associates and others create new tracks)
         assert len(tracks) >= 1
+
+    def test_single_aircraft_trajectory_association(self):
+        """Test that a single aircraft trajectory creates one track with multiple hits"""
+
+        # Simulate aircraft flying straight line
+        aircraft_detections = [
+            {"timestamp_ms": 1000, "lla_position": [-34.9286, 138.5999, 1000]},
+            {"timestamp_ms": 2000, "lla_position": [-34.9290, 138.6000, 1050]},
+            {"timestamp_ms": 3000, "lla_position": [-34.9294, 138.6001, 1100]},
+            {"timestamp_ms": 4000, "lla_position": [-34.9298, 138.6002, 1150]},
+        ]
+
+        track_id = None
+        for i, detection in enumerate(aircraft_detections):
+            tracks = self.tracker.update_all_tracks(
+                all_localised_detections_lla=[detection],
+                current_timestamp_ms=detection["timestamp_ms"],
+            )
+
+            if i == 0:
+                # First detection creates track
+                assert len(tracks) == 1
+                track_id = next(iter(tracks.keys()))
+                assert tracks[track_id].hits == 1
+            else:
+                # Subsequent detections should associate to same track
+                assert len(tracks) == 1
+                assert track_id in tracks
+                assert tracks[track_id].hits == i + 1  # Should increment hits
+
+        # Final verification
+        final_track = tracks[track_id]
+        assert final_track.hits == 4  # All 4 detections associated
+        assert final_track.status == TrackStatus.CONFIRMED  # Should be confirmed by now
