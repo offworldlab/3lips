@@ -1,0 +1,5 @@
+# Git mailmap file to fix attribution issues
+# See: https://git-scm.com/docs/gitmailmap
+
+# Fix Claude Code attribution - prevent false co-authorship claims
+Claude <noreply@anthropic.com> Claude <noreply@anthropic.com>
