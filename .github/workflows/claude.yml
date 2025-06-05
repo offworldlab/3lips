@@ -55,7 +55,7 @@ jobs:
         uses: anthropics/claude-code-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: |
+          custom_instructions: |
             Please perform a thorough code review of this pull request. Focus on:
 
             ## Code Quality & Best Practices
