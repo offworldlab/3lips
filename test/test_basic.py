@@ -11,7 +11,7 @@ def test_imports():
     import math
     import os
     import sys
-    
+
     assert math.pi > 3
     assert os.path.exists(".")
     assert sys.version_info.major >= 3

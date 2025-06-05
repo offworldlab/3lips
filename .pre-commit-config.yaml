@@ -58,26 +58,8 @@ repos:
 
       - id: pytest
         name: Run unit tests
-        entry: pytest
-        language: python
+        entry: ./run_tests.sh
+        language: system
         types: [python]
         pass_filenames: false
-        args: ["-v"]
-        additional_dependencies:
-          [
-            "boto3>=1.34.0",
-            "email-validator>=2.0.0",
-            "fastapi>=0.110.0",
-            "httpx>=0.27.0",
-            "litellm>=1.30.3",
-            "pydantic-settings>=2.2.1",
-            "pydantic>=2.6.3",
-            "pytest-asyncio>=0.23.5",
-            "pytest-cov>=4.1.0",
-            "pytest>=8.0.0",
-            "python-dotenv>=1.0.1",
-            "python-json-logger>=2.0.7",
-            "python-multipart>=0.0.11,<0.0.12",
-            "slowapi>=0.1.9",
-            "PyJWT>=2.0.0",
-          ]
+        args: ["-v", "--tb=short"]

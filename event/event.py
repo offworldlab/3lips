@@ -582,7 +582,7 @@ async def callback_message_received(msg):
 
 
 # init messaging
-message_api_request = Message("0.0.0.0", 6969)
+message_api_request = Message("0.0.0.0", 6969)  # nosec B104 - intentional for Docker networking
 message_api_request.set_callback_message_received(callback_message_received)
 
 if __name__ == "__main__":

@@ -1,6 +1,5 @@
 import numpy as np
-
-from event.algorithm.geometry.Geometry import Geometry
+from algorithm.geometry.Geometry import Geometry
 
 
 class NodeDetectionsHelper:  # Or place in an appropriate existing class/module

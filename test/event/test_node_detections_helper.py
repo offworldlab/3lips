@@ -1,9 +1,12 @@
-import unittest
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../event"))
+
 from unittest.mock import patch
 
 import numpy as np
-
-from event.algorithm.associator.NodeDetectionsHelper import NodeDetectionsHelper
+from algorithm.associator.NodeDetectionsHelper import NodeDetectionsHelper
 
 
 class MockTrack:
@@ -11,11 +14,11 @@ class MockTrack:
         self.state_vector = np.array(state_vector)
 
 
-class TestNodeDetectionsHelper(unittest.TestCase):
-    def setUp(self):
+class TestNodeDetectionsHelper:
+    def setup_method(self):
         self.helper = NodeDetectionsHelper()
 
-    @patch("event.algorithm.geometry.Geometry.Geometry.lla2ecef")
+    @patch("algorithm.geometry.Geometry.Geometry.lla2ecef")
     def test_has_existing_tracks_in_detection_space_true(self, mock_lla2ecef):
         # Setup
         mock_lla2ecef.return_value = (1000, 2000, 3000)
@@ -31,9 +34,9 @@ class TestNodeDetectionsHelper(unittest.TestCase):
             existing_tracks_map,
             gating_threshold_m,
         )
-        self.assertTrue(result)
+        assert result
 
-    @patch("event.algorithm.geometry.Geometry.Geometry.lla2ecef")
+    @patch("algorithm.geometry.Geometry.Geometry.lla2ecef")
     def test_has_existing_tracks_in_detection_space_false(self, mock_lla2ecef):
         mock_lla2ecef.return_value = (0, 0, 0)
         new_detection_lla = [1, 2, 3]
@@ -45,7 +48,7 @@ class TestNodeDetectionsHelper(unittest.TestCase):
             existing_tracks_map,
             gating_threshold_m,
         )
-        self.assertFalse(result)
+        assert not result
 
     def test_has_existing_tracks_in_detection_space_empty(self):
         new_detection_lla = [1, 2, 3]
@@ -56,9 +59,9 @@ class TestNodeDetectionsHelper(unittest.TestCase):
             existing_tracks_map,
             gating_threshold_m,
         )
-        self.assertFalse(result)
+        assert not result
 
-    @patch("event.algorithm.geometry.Geometry.Geometry.lla2ecef")
+    @patch("algorithm.geometry.Geometry.Geometry.lla2ecef")
     def test__get_node_rx_ecef_valid(self, mock_lla2ecef):
         mock_lla2ecef.return_value = (1, 2, 3)
         node_config = {
@@ -71,13 +74,13 @@ class TestNodeDetectionsHelper(unittest.TestCase):
         # Missing location
         node_config = {}
         result = self.helper._get_node_rx_ecef(node_config)
-        self.assertIsNone(result)
+        assert result is None
         # Missing rx
         node_config = {"location": {}}
         result = self.helper._get_node_rx_ecef(node_config)
-        self.assertIsNone(result)
+        assert result is None
 
-    @patch("event.algorithm.geometry.Geometry.Geometry.lla2ecef")
+    @patch("algorithm.geometry.Geometry.Geometry.lla2ecef")
     def test_get_nodes_with_overlapping_detection_space(self, mock_lla2ecef):
         # Setup two nodes within range, one out of range
         mock_lla2ecef.side_effect = [
@@ -110,11 +113,11 @@ class TestNodeDetectionsHelper(unittest.TestCase):
             all_nodes_data,
             max_effective_range_m,
         )
-        self.assertIn("node2", result)
-        self.assertNotIn("node3", result)
-        self.assertNotIn("node1", result)
+        assert "node2" in result
+        assert "node3" not in result
+        assert "node1" not in result
 
-    @patch("event.algorithm.geometry.Geometry.Geometry.lla2ecef")
+    @patch("algorithm.geometry.Geometry.Geometry.lla2ecef")
     def test_get_nodes_with_overlapping_detection_space_missing_config(
         self,
         mock_lla2ecef,
@@ -133,8 +136,4 @@ class TestNodeDetectionsHelper(unittest.TestCase):
             all_nodes_data,
             max_effective_range_m,
         )
-        self.assertEqual(result, [])
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert result == []
