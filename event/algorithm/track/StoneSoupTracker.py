@@ -25,13 +25,13 @@ class StoneSoupTracker:
         self.config = {
             "max_misses_to_delete": 5,
             "min_hits_to_confirm": 3,
-            "gating_mahalanobis_threshold": 11.345,  # Chi-squared for 3DOF, P_G=0.99
-            "initial_pos_uncertainty_ecef_m": [500.0, 500.0, 500.0],
-            "initial_vel_uncertainty_ecef_mps": [100.0, 100.0, 100.0],
+            "gating_mahalanobis_threshold": 100.0,  # Much more permissive gating
+            "initial_pos_uncertainty_ecef_m": [1000.0, 1000.0, 1000.0],  # Higher uncertainty
+            "initial_vel_uncertainty_ecef_mps": [200.0, 200.0, 200.0],  # Higher velocity uncertainty
             "dt_default_s": 1.0,
-            "process_noise_coeff": 0.1,
-            "measurement_noise_coeff": 500.0,
-            "verbose": False,
+            "process_noise_coeff": 10.0,  # Much higher process noise
+            "measurement_noise_coeff": 1000.0,  # Higher measurement noise
+            "verbose": True,  # Enable debugging
         }
         if config:
             self.config.update(config)
@@ -59,6 +59,7 @@ class StoneSoupTracker:
         
         # Gater for initial filtering
         self.gater = DistanceGater(
+            hypothesiser=self.hypothesiser,
             measure=Mahalanobis(),
             gate_threshold=self.config["gating_mahalanobis_threshold"]
         )
@@ -105,7 +106,7 @@ class StoneSoupTracker:
 
     def _initiate_new_track(self, detection, status=TrackStatus.TENTATIVE):
         """Create new track from unassociated detection."""
-        measurement_pos_ecef = detection.state_vector
+        measurement_pos_ecef = detection.state_vector.flatten()  # Flatten to 1D
         
         # Initial state: position + zero velocity
         initial_state_vector = np.concatenate([
@@ -180,6 +181,9 @@ class StoneSoupTracker:
 
     def update_all_tracks(self, all_localised_detections_lla, current_timestamp_ms, adsb_detections_lla=None):
         """Main entry point compatible with existing Tracker interface."""
+        if self.config["verbose"]:
+            print(f"[STONE_SOUP] update_all_tracks called with {len(all_localised_detections_lla)} detections, {len(self.active_tracks)} existing tracks")
+            
         if self.last_timestamp_ms is None:
             self.last_timestamp_ms = current_timestamp_ms - (self.config["dt_default_s"] * 1000)
 
@@ -267,36 +271,73 @@ class StoneSoupTracker:
 
             # Perform data association
             if track_states:
-                try:
-                    associations = self.data_associator.associate(
-                        tracks=track_states,
-                        detections=radar_detections,
-                        timestamp=current_time
+                if self.config["verbose"]:
+                    print(f"[STONE_SOUP] Starting data association with {len(track_states)} tracks and {len(radar_detections)} detections")
+                
+                associations = self.data_associator.associate(
+                    tracks=track_states,
+                    detections=radar_detections,
+                    timestamp=current_time
+                )
+                
+                if self.config["verbose"]:
+                    print(f"Stone Soup association result type: {type(associations)}")
+                    print(f"Association result attributes: {dir(associations)}")
+                    if hasattr(associations, 'associations'):
+                        print(f"Has associations attribute: {len(associations.associations)} associations")
+                    elif isinstance(associations, dict):
+                        print(f"Dict keys: {list(associations.keys())}")
+                
+                # Handle different association result formats
+                associated_pairs = []
+                unassociated_tracks = list(track_states)
+                unassociated_detections = list(radar_detections)
+                
+                if hasattr(associations, 'associations'):
+                    # Standard Stone Soup format
+                    associated_pairs = list(associations.associations)
+                    unassociated_tracks = list(associations.unassociated_tracks) if hasattr(associations, 'unassociated_tracks') else []
+                    unassociated_detections = list(associations.unassociated_detections) if hasattr(associations, 'unassociated_detections') else []
+                elif isinstance(associations, dict):
+                    # Handle dictionary format - extract associations
+                    for track_state, detection in associations.items():
+                        if track_state in track_states and detection in radar_detections:
+                            associated_pairs.append((track_state, detection))
+                            if track_state in unassociated_tracks:
+                                unassociated_tracks.remove(track_state)
+                            if detection in unassociated_detections:
+                                unassociated_detections.remove(detection)
+                
+                # Update associated tracks
+                for track_state, detection in associated_pairs:
+                    track_idx = track_states.index(track_state)
+                    track_id = track_ids[track_idx]
+                    track = self.active_tracks[track_id]
+                    
+                    if self.config["verbose"]:
+                        print(f"Associating detection to track {track_id}")
+                    
+                    # Update with Kalman filter
+                    updated_state = self.updater.update(
+                        prediction=track_state,
+                        detection=detection
                     )
                     
-                    # Update associated tracks
-                    for track_state, detection in associations.associations:
+                    track.append(updated_state)
+                    track.state_vector = updated_state.state_vector
+                    track.covariance_matrix = updated_state.covar
+                    track.update_custom(detection.metadata if hasattr(detection, 'metadata') else {})
+                    track.increment_age()
+                
+                # Handle unassociated tracks
+                for track_state in unassociated_tracks:
+                    if track_state in track_states:  # Ensure it's an existing track
                         track_idx = track_states.index(track_state)
                         track_id = track_ids[track_idx]
                         track = self.active_tracks[track_id]
                         
-                        # Update with Kalman filter
-                        updated_state = self.updater.update(
-                            prediction=track_state,
-                            detection=detection
-                        )
-                        
-                        track.append(updated_state)
-                        track.state_vector = updated_state.state_vector
-                        track.covariance_matrix = updated_state.covar
-                        track.update_custom(detection.metadata if hasattr(detection, 'metadata') else {})
-                        track.increment_age()
-                    
-                    # Handle unassociated tracks
-                    for track_state in associations.unassociated_tracks:
-                        track_idx = track_states.index(track_state)
-                        track_id = track_ids[track_idx]
-                        track = self.active_tracks[track_id]
+                        if self.config["verbose"]:
+                            print(f"Track {track_id} unassociated, predicting...")
                         
                         # Predict without update
                         predicted_state = self.predictor.predict(track.states[-1], timestamp=current_time)
@@ -305,27 +346,12 @@ class StoneSoupTracker:
                         track.covariance_matrix = predicted_state.covar
                         track.increment_misses()
                         track.increment_age()
-                    
-                    # Create new tracks for unassociated detections
-                    for detection in associations.unassociated_detections:
-                        self._initiate_new_track(detection, status=TrackStatus.TENTATIVE)
-                        
-                except Exception as e:
+                
+                # Create new tracks for unassociated detections
+                for detection in unassociated_detections:
                     if self.config["verbose"]:
-                        print(f"Error in data association: {e}")
-                    # Fallback: just predict existing tracks
-                    for track_id, track in self.active_tracks.items():
-                        if track.states and len(track.states) > 0:
-                            try:
-                                predicted_state = self.predictor.predict(track.states[-1], timestamp=current_time)
-                                track.append(predicted_state)
-                                track.state_vector = predicted_state.state_vector
-                                track.covariance_matrix = predicted_state.covar
-                                track.increment_misses()
-                                track.increment_age()
-                            except Exception as track_e:
-                                if self.config["verbose"]:
-                                    print(f"Error predicting track {track_id}: {track_e}")
+                        print(f"Creating new track for unassociated detection")
+                    self._initiate_new_track(detection, status=TrackStatus.TENTATIVE)
             else:
                 # No existing tracks, create new ones for all detections
                 for detection in radar_detections:

@@ -86,7 +86,6 @@ tracker_config_params = {
     "dt_default_s": float(os.environ.get("TRACKER_DT_DEFAULT_S", 1.0)),
     "process_noise_coeff": float(os.environ.get("TRACKER_PROCESS_NOISE_COEFF", 0.1)),
     "measurement_noise_coeff": float(os.environ.get("TRACKER_MEASUREMENT_NOISE_COEFF", 500.0)),
-    "use_stone_soup": os.environ.get("TRACKER_USE_STONE_SOUP", "True").lower() == "true",
 }
 verbose_tracker = tracker_config_params["verbose"]
 

@@ -33,7 +33,7 @@ class Tracker:
             "process_noise_coeff": 0.1,  # Stone Soup process noise coefficient
             "measurement_noise_coeff": 500.0,  # Stone Soup measurement noise coefficient
             "verbose": False,
-            "use_stone_soup": True,  # Enable Stone Soup by default
+            "use_stone_soup": False,  # Disable Stone Soup by default until association issues are resolved
         }
         if config:
             self.config.update(config)
