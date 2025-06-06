@@ -1,4 +1,4 @@
-name: Claude Code
+name: AI Code Review
 
 on:
   issue_comment:
@@ -43,19 +43,18 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      id-token: write
+      actions: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Claude Code Review
-        id: claude-review
-        uses: anthropics/claude-code-action@beta
+      - name: GitHub Copilot Code Review
+        uses: github/copilot-code-review-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          custom_instructions: |
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          review-prompt: |
             Please perform a thorough code review of this pull request. Focus on:
 
             ## Code Quality & Best Practices
