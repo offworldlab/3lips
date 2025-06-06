@@ -19,6 +19,16 @@ def is_localhost(server):
         return host.startswith("localhost")
 
 
+def translate_localhost_to_container(server):
+    """Translate localhost URLs to container names for inter-container communication."""
+    if server == "localhost:5001":
+        return "synthetic-adsb:5001"
+    elif server.startswith("localhost:491"):  # localhost:49158, 49159, 49160
+        port = server.split(":")[1]
+        return f"synthetic-adsb:{port}"
+    return server
+
+
 class AdsbTruth:
     """@class AdsbTruth
     @brief A class for storing ADS-B truth in the API response.
@@ -36,11 +46,14 @@ class AdsbTruth:
         """
         output = {}
 
+        # Translate localhost to container name for inter-container communication
+        translated_server = translate_localhost_to_container(server)
+        
         # Check if server is on local network
         if is_localhost(server):
-            url = "http://" + server + "/data/aircraft.json"
+            url = "http://" + translated_server + "/data/aircraft.json"
         else:
-            url = "https://" + server + "/data/aircraft.json"
+            url = "https://" + translated_server + "/data/aircraft.json"
 
         print(f"Getting truth from {url}")
 

@@ -128,17 +128,19 @@ class Tracker:
 
         for i, track_id in enumerate(track_ids_list):
             predicted_state_ecef, _ = predicted_tracks_map[track_id]
-            track_pos_ecef = predicted_state_ecef[
-                :3
-            ]  # Assuming x,y,z are the first 3 elements
+            # Ensure track position is a 1D array for proper distance calculation
+            track_pos_ecef = np.array(predicted_state_ecef[:3]).flatten()
 
             for j, (meas_pos_ecef, _, _) in enumerate(measurements):
+                # Ensure measurement position is also 1D array
+                meas_pos_ecef = np.array(meas_pos_ecef).flatten()
+
                 # Euclidean distance for gating
                 dist_sq = np.sum((track_pos_ecef - meas_pos_ecef) ** 2)
 
                 if dist_sq < gating_threshold_sq:
                     cost_matrix[i, j] = np.sqrt(
-                        dist_sq,
+                        dist_sq
                     )  # Store actual distance as cost
 
         # Greedy assignment (Nearest Neighbor based on smallest cost)
@@ -336,12 +338,14 @@ class Tracker:
 
                 # Simplified update for ADS-B (high confidence)
                 alpha = 0.8  # Higher weight for ADS-B measurements
-                updated_state_pos = (1 - alpha) * track.state_vector[
-                    :3
-                ] + alpha * measurement_pos_ecef
-                updated_state = np.concatenate(
-                    (updated_state_pos, track.state_vector[3:]),
-                )
+
+                # Ensure consistent array shapes for state update
+                track_pos = np.array(track.state_vector[:3]).flatten()
+                meas_pos = np.array(measurement_pos_ecef).flatten()
+                track_vel = np.array(track.state_vector[3:]).flatten()
+
+                updated_state_pos = (1 - alpha) * track_pos + alpha * meas_pos
+                updated_state = np.concatenate((updated_state_pos, track_vel))
                 updated_covariance = track.covariance_matrix.copy()
                 updated_covariance[:3, :3] = np.minimum(
                     track.covariance_matrix[:3, :3],
@@ -411,12 +415,14 @@ class Tracker:
             alpha = (
                 0.6 if track.adsb_info is None else 0.4
             )  # Lower weight if track has ADS-B info
-            updated_state_pos = (1 - alpha) * track.state_vector[
-                :3
-            ] + alpha * measurement_pos_ecef
-            updated_state = np.concatenate(
-                (updated_state_pos, track.state_vector[3:]),
-            )  # Keep predicted velocity
+
+            # Ensure consistent array shapes for state update
+            track_pos = np.array(track.state_vector[:3]).flatten()
+            meas_pos = np.array(measurement_pos_ecef).flatten()
+            track_vel = np.array(track.state_vector[3:]).flatten()
+
+            updated_state_pos = (1 - alpha) * track_pos + alpha * meas_pos
+            updated_state = np.concatenate((updated_state_pos, track_vel))
             # Simplified covariance update: assume measurement reduces uncertainty
             updated_covariance = track.covariance_matrix.copy()
             updated_covariance[:3, :3] = np.minimum(

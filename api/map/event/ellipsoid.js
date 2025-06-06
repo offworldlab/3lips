@@ -1,7 +1,6 @@
 function event_ellipsoid() {
 
-  var radar_url = window.location.origin +
-    '/api' + window.location.search;
+  var radar_url = window.location.origin + '/api' + window.location.search;
 
   fetch(radar_url)
     .then(response => {

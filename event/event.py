@@ -147,6 +147,15 @@ async def event():
             f"DEBUG: Config {i}: hash={config.get('hash')}, adsb={config.get('adsb')}, timestamp={config.get('timestamp')}",
         )
 
+    def translate_localhost_to_container(server):
+        """Translate localhost URLs to container names for inter-container communication."""
+        if server == "localhost:5001":
+            return "synthetic-adsb:5001"
+        elif server.startswith("localhost:491"):  # localhost:49158, 49159, 49160
+            port = server.split(":")[1]
+            return f"synthetic-adsb:{port}"
+        return server
+
     # 1. Aggregate unique radar names
     radar_names = []
     for item_config in api_event_configs_this_cycle:
@@ -154,6 +163,9 @@ async def event():
             for radar_url_name in item_config["server"]:
                 radar_names.append(radar_url_name)
     radar_names = list(set(radar_names))
+    
+    # Translate localhost URLs to container names for inter-container communication
+    radar_names = [translate_localhost_to_container(name) for name in radar_names]
 
     # 2. Fetch data from all unique radars
     radar_dict = {}
@@ -215,14 +227,18 @@ async def event():
         item_radars = item_config.get("server", [])
         if not isinstance(item_radars, list):
             item_radars = [item_radars]
+        
+        # Translate localhost URLs to container names for this item too
+        item_radars_translated = [translate_localhost_to_container(name) for name in item_radars]
+        
         radar_dict_item = {
             key: radar_dict.get(key)
-            for key in item_radars
+            for key in item_radars_translated
             if key in radar_dict and radar_dict.get(key) is not None
         }
         if not radar_dict_item or not any(
             radar_dict_item.get(r) and radar_dict_item[r].get("config")
-            for r in item_radars
+            for r in item_radars_translated
         ):
             print(
                 f"Skipping item {item_config.get('hash')} due to missing radar data/config for its servers.",
@@ -269,7 +285,7 @@ async def event():
             processed_api_request_outputs.append(error_output)
             continue
         # Perform item-specific association
-        associated_dets = associator.process(item_radars, radar_dict_item, timestamp)
+        associated_dets = associator.process(item_radars_translated, radar_dict_item, timestamp)
         # Prepare for localisation
         associated_dets_3_radars = {
             key: value

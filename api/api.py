@@ -53,7 +53,7 @@ map_data = {
     },
     "center_width": int(os.getenv("MAP_CENTER_WIDTH", 50000)),
     "center_height": int(os.getenv("MAP_CENTER_HEIGHT", 40000)),
-    "tar1090": os.getenv("TAR1090_URL", "192.168.0.172:5001"),
+    "tar1090": os.getenv("TAR1090_URL", "localhost:5001"),
 }
 
 # store state data
@@ -74,6 +74,7 @@ localisations = [
 
 adsbs = [
     {"name": map_data["tar1090"], "url": map_data["tar1090"]},
+    {"name": "synthetic-adsb:5001", "url": "synthetic-adsb:5001"},
     {"name": "None", "url": ""},
 ]
 
@@ -122,7 +123,7 @@ def index():
                     "tile.datr.dev/data/opentopomap/",
                 ),
             },
-            "tar1090": os.getenv("TAR1090_URL", "192.168.0.172:5001"),
+            "tar1090": os.getenv("TAR1090_URL", "localhost:5001"),
         },
     }
     return render_template(

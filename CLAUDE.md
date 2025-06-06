@@ -54,9 +54,102 @@ Environment variables are configured in `.env` file:
 - **Tracking**: Confirmation thresholds, gating parameters
 - **ADS-B**: Integration settings and data retention
 
+## Issue Development Workflow
+
+When working on GitHub issues, follow this standardized workflow:
+
+### 1. Branch Management
+```bash
+# Create and checkout a new branch for the issue
+git checkout -b issue-##-brief-description
+
+# Example: git checkout -b issue-12-nearest-neighbor-association
+```
+
+### 2. Development Process
+- Implement the feature or fix following existing code patterns
+- Write **minimal, idiomatic code** - prefer concise, readable solutions
+- **DO NOT add comments** unless absolutely necessary for complex algorithms
+- Follow existing architectural patterns and naming conventions
+
+### 3. Testing Requirements
+- **All new business logic MUST have corresponding tests**
+- Add tests in `test/event/` following existing patterns
+- Ensure tests cover edge cases and error conditions
+- Run tests to verify functionality:
+```bash
+# Run tests in event container
+docker exec -it 3lips-event python -m pytest test/
+```
+
+### 4. Code Review Process
+Before creating a PR, perform a thorough self-review:
+
+- **Remove unnecessary comments** - code should be self-documenting
+- **Minimize lines of code** - prefer concise, readable implementations
+- **Ensure idiomatic Python/JavaScript** - follow language best practices
+- **Check for code duplication** - extract common functionality
+- **Verify error handling** - handle edge cases appropriately
+
+### 5. Pre-commit Validation
+```bash
+# Run pre-commit hooks to catch issues early
+git add .
+git commit -m "Initial implementation"
+
+# Fix any issues flagged by pre-commit hooks
+# Re-commit after fixes
+```
+
+### 6. Pull Request Creation
+```bash
+# Push branch to remote
+git push -u origin issue-##-brief-description
+
+# Create PR using GitHub CLI
+gh pr create --title "Fix ###: Brief description" \
+  --body "Closes ###\n\n## Changes\n- Brief bullet points\n\n## Testing\n- Test coverage added for new functionality"
+```
+
+### 7. PR Template
+Use this template for pull request descriptions:
+```markdown
+Closes #[issue-number]
+
+## Changes
+- Concise bullet points of what changed
+- Focus on the "what" not the "how"
+
+## Testing
+- New tests added for [specific functionality]
+- All existing tests pass
+- Edge cases covered: [list any specific edge cases]
+
+## Code Quality
+- [ ] Removed unnecessary comments
+- [ ] Minimized lines of code
+- [ ] Code is idiomatic and follows patterns
+- [ ] Pre-commit hooks pass
+- [ ] No code duplication
+```
+
+### 8. Review Checklist
+Before submitting PR, verify:
+- [ ] Branch name follows `issue-##-brief-description` pattern
+- [ ] All new business logic has tests
+- [ ] Code is minimal and idiomatic
+- [ ] No unnecessary comments added
+- [ ] Pre-commit hooks pass without issues
+- [ ] PR description is clear and complete
+
 ## Testing
 
 Tests are located in `test/event/` and focus on geometry calculations and detection association. Run tests within the event container environment.
+
+**Test Requirements:**
+- All new business logic must have corresponding unit tests
+- Tests should cover normal operation, edge cases, and error conditions
+- Follow existing test patterns and naming conventions
 
 ## Key Algorithms
 
