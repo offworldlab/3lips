@@ -37,59 +37,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
-  code-review:
-    if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      actions: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: GitHub Copilot Code Review
-        uses: github/copilot-code-review-action@v1
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          review-prompt: |
-            Please perform a thorough code review of this pull request. Focus on:
-
-            ## Code Quality & Best Practices
-            - **Idiomatic Python**: Check for Pythonic patterns, proper use of language features
-            - **Code style**: Consistent formatting, naming conventions, documentation
-            - **Error handling**: Proper exception handling and edge case coverage
-            - **Performance**: Identify potential performance issues or inefficiencies
-            - **Security**: Flag any security concerns or vulnerabilities
-
-            ## Test Behavior Analysis
-            - **Test changes**: Analyze any modifications to existing tests
-            - **Test coverage**: Ensure new code has appropriate test coverage
-            - **Behavioral changes**: Identify if test changes indicate functional changes
-            - **Regression risk**: Flag changes that might introduce regressions
-            - **Baseline impact**: Check if changes affect tracking baseline behavior (critical for Stone Soup integration)
-
-            ## 3lips-Specific Concerns
-            - **Tracking logic**: Verify tracking algorithm changes are sound
-            - **Coordinate systems**: Ensure proper handling of LLA/ECEF/ENU conversions
-            - **Association logic**: Review detection-to-track association correctness
-            - **Stone Soup compatibility**: Ensure changes don't break future Stone Soup integration
-            - **ADS-B integration**: Verify ADS-B handling remains correct
-
-            ## Comments Guidelines
-            - Leave specific, actionable comments on problematic lines
-            - Explain WHY something is an issue, not just WHAT is wrong
-            - Suggest concrete improvements
-            - Praise good practices when you see them
-            - Focus on important issues; don't nitpick trivial formatting
-
-            ## Review Priorities
-            1. **CRITICAL**: Security issues, breaking changes, test behavior changes
-            2. **HIGH**: Non-idiomatic code, missing error handling, performance issues
-            3. **MEDIUM**: Style inconsistencies, missing documentation
-            4. **LOW**: Minor improvements, suggestions
-
-            Please review the code changes and leave appropriate comments.
+  # Note: GitHub Copilot code review is available as a manual feature in the GitHub UI
+  # Automated code review via GitHub Actions is not currently supported by GitHub Copilot
+  # Team members should use GitHub Copilot manually when reviewing PRs
 
