@@ -1,7 +1,6 @@
 function event_radar() {
 
-  var radar_url = window.location.origin +
-    '/api' + window.location.search;
+  var radar_url = window.location.origin + '/api' + window.location.search;
 
   fetch(radar_url)
     .then(response => {

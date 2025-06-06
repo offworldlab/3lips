@@ -71,6 +71,9 @@ class Track(StoneSoupTrack):
 
     def update(self, detection, timestamp_ms, new_state, new_covariance):
         """Update the track's state, covariance, and history. Compatible with Tracker's update call."""
+        from stonesoup.types.state import State
+        from datetime import datetime
+        
         old_pos = self.state_vector[:3] if self.state_vector is not None else None
         new_pos = new_state[:3] if new_state is not None else None
 
@@ -82,6 +85,16 @@ class Track(StoneSoupTrack):
         self.state_vector = new_state
         self.covariance_matrix = new_covariance
         self.timestamp_update_ms = timestamp_ms
+        
+        # Create a new State object and append to states list for to_dict() compatibility
+        new_state_obj = State(
+            state_vector=new_state,
+            timestamp=datetime.fromtimestamp(timestamp_ms / 1000.0)
+        )
+        if hasattr(new_state_obj, 'covar'):
+            new_state_obj.covar = new_covariance
+        self.append(new_state_obj)
+        
         # Update custom fields/history
         self.update_custom(detection)
 
@@ -147,14 +160,22 @@ class Track(StoneSoupTrack):
 
     def to_dict(self):
         """Returns a dictionary representation of the track, suitable for JSON serialization."""
+        # Get the most recent state vector and flatten it for API compatibility
+        current_state = None
+        if self.states:
+            state_vector = self.states[-1].state_vector
+            # Flatten nested arrays to a simple list
+            if hasattr(state_vector, 'flatten'):
+                current_state = state_vector.flatten().tolist()
+            else:
+                current_state = state_vector.tolist()
+        
         return {
             "track_id": self.id,
             "status": self.status.name
             if hasattr(self.status, "name")
             else str(self.status),
-            "current_state_vector": self.states[-1].state_vector.tolist()
-            if self.states
-            else None,
+            "current_state_vector": current_state,
             "hits": self.hits,
             "misses": self.misses,
             "age_scans": self.age_scans,

@@ -182,14 +182,21 @@ if (cesiumCredit) {
   return pointEntity;
 }
 
-function is_localhost(ip) {
-  if (ip === 'localhost') {
+function is_localhost(url) {
+  // Handle direct localhost string
+  if (url === 'localhost') {
     return true;
   }
 
-  // Remove protocol and port
-  ip = ip.replace(/^https?:\/\//, "");
-  ip = ip.split(':')[0];
+  // Remove protocol and port to extract hostname
+  let hostname = url.replace(/^https?:\/\//, "");
+  hostname = hostname.split(':')[0];
+  hostname = hostname.split('/')[0]; // Remove path if present
+  
+  // Check if hostname is localhost
+  if (hostname === 'localhost') {
+    return true;
+  }
   
   const localRanges = ['127.0.0.1', '192.168.0.0/16', '10.0.0.0/8', '172.16.0.0/12'];
 
@@ -199,7 +206,7 @@ function is_localhost(ip) {
     const [rangeStart, rangeSize = 32] = range.split('/');
     const start = ipToInt(rangeStart);
     const end = (start | (1 << (32 - +rangeSize))) >>> 0;
-    return ipToInt(ip) >= start && ipToInt(ip) <= end;
+    return ipToInt(hostname) >= start && ipToInt(hostname) <= end;
   });
 
 }
@@ -221,9 +228,12 @@ window.addEventListener('load', function () {
   var radar_config_url = radar_names.map(
     url => `http://${url}/api/config`);
   radar_config_url = radar_config_url.map(function(url) {
+    console.log('Processing radar URL:', url, 'is_localhost:', is_localhost(url));
     if (!is_localhost(url)) {
+      console.log('Converting to HTTPS:', url);
       return url.replace(/^http:/, 'https:');
     }
+    console.log('Keeping as HTTP:', url);
     return url;
   });
   var style_radar = {};
@@ -276,9 +286,12 @@ window.addEventListener('load', function () {
     window.location.search).get('adsb').split('&');
   adsb_url = adsb_url.map(function(url) {
     const fullUrl = `http://${url}/data/aircraft.json`;
+    console.log('Processing ADSB URL:', fullUrl, 'is_localhost:', is_localhost(fullUrl));
     if (!is_localhost(fullUrl)) {
+      console.log('Converting to HTTPS:', fullUrl);
       return fullUrl.replace(/^http:/, 'https:');
     }
+    console.log('Keeping as HTTP:', fullUrl);
     return fullUrl;
   });
   adsb_url = adsb_url[0];
