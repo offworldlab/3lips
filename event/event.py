@@ -66,6 +66,9 @@ tracker_config_params = {
     "gating_euclidean_threshold_m": float(
         os.environ.get("TRACKER_GATING_EUCLIDEAN_THRESHOLD_M", 10000.0),
     ),
+    "gating_mahalanobis_threshold": float(
+        os.environ.get("TRACKER_GATING_MAHALANOBIS_THRESHOLD", 11.345),
+    ),
     "initial_pos_uncertainty_ecef_m": [
         float(x)
         for x in os.environ.get(
@@ -81,6 +84,9 @@ tracker_config_params = {
         ).split(",")
     ],
     "dt_default_s": float(os.environ.get("TRACKER_DT_DEFAULT_S", 1.0)),
+    "process_noise_coeff": float(os.environ.get("TRACKER_PROCESS_NOISE_COEFF", 0.1)),
+    "measurement_noise_coeff": float(os.environ.get("TRACKER_MEASUREMENT_NOISE_COEFF", 500.0)),
+    "use_stone_soup": os.environ.get("TRACKER_USE_STONE_SOUP", "True").lower() == "true",
 }
 verbose_tracker = tracker_config_params["verbose"]
 

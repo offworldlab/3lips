@@ -5,45 +5,63 @@ from stonesoup.types.state import State
 
 from ..geometry.Geometry import Geometry
 
-# Assuming these files will be created/are available in the specified paths
+# Import Stone Soup tracker implementation
+from .StoneSoupTracker import StoneSoupTracker
 from .Track import Track, TrackStatus
 
 
 class Tracker:
     """@class Tracker
-    @brief Manages a list of active tracks.
+    @brief Manages a list of active tracks using Stone Soup algorithms.
     """
 
     def __init__(self, config=None):
         """@brief Constructor for the Tracker class.
         @param config (dict, optional): Configuration dictionary for the tracker.
         """
-        self.active_tracks = {}  # Dictionary to store active tracks, keyed by track_id
-        self.last_timestamp_ms = None  # Timestamp of the last update cycle
-
         # --- Default Configuration ---
         # These can be overridden by the 'config' parameter passed during instantiation
         self.config = {
             "max_misses_to_delete": 5,  # Max consecutive scans a track can be missed before deletion
             "min_hits_to_confirm": 3,  # Min hits required to change a track from TENTATIVE to CONFIRMED
             "gating_euclidean_threshold_m": 5000.0,  # Euclidean distance threshold for gating (in meters)
-            # For Mahalanobis gating (if implemented):
-            # "gating_mahalanobis_threshold_chi2": 11.345, # Chi-squared for 3DOF (x,y,z), P_G=0.99
+            "gating_mahalanobis_threshold": 11.345,  # Chi-squared for 3DOF (x,y,z), P_G=0.99
             # Initial uncertainty for new tracks (standard deviations)
             "initial_pos_uncertainty_ecef_m": [100.0, 100.0, 100.0],  # x,y,z ECEF
             "initial_vel_uncertainty_ecef_mps": [50.0, 50.0, 50.0],  # vx,vy,vz ECEF
-            # Kalman Filter related (placeholders, actual KF would have its own config)
-            # "kf_process_noise_std_pos": 10.0, # m/s^2 * dt for position
-            # "kf_process_noise_std_vel": 5.0,  # m/s^2 * dt for velocity
-            # "kf_measurement_noise_std_ecef_m": [50.0, 50.0, 50.0], # Measurement noise for x,y,z ECEF
             "dt_default_s": 1.0,  # Default time step in seconds if not calculable
+            "process_noise_coeff": 0.1,  # Stone Soup process noise coefficient
+            "measurement_noise_coeff": 500.0,  # Stone Soup measurement noise coefficient
             "verbose": False,
+            "use_stone_soup": True,  # Enable Stone Soup by default
         }
         if config:
             self.config.update(config)
 
+        # Initialize Stone Soup tracker or fallback to legacy implementation
+        if self.config.get("use_stone_soup", True):
+            try:
+                self.stone_soup_tracker = StoneSoupTracker(self.config)
+                self.active_tracks = self.stone_soup_tracker.active_tracks
+                self.last_timestamp_ms = None
+                if self.config["verbose"]:
+                    print("Tracker initialized with Stone Soup backend")
+            except Exception as e:
+                if self.config["verbose"]:
+                    print(f"Warning: Failed to initialize Stone Soup tracker ({e}), falling back to legacy implementation")
+                self.stone_soup_tracker = None
+                self._init_legacy_tracker()
+        else:
+            self.stone_soup_tracker = None
+            self._init_legacy_tracker()
+
+    def _init_legacy_tracker(self):
+        """Initialize legacy tracker implementation."""
+        self.active_tracks = {}  # Dictionary to store active tracks, keyed by track_id
+        self.last_timestamp_ms = None  # Timestamp of the last update cycle
+        
         if self.config["verbose"]:
-            print(f"Tracker initialized with config: {self.config}")
+            print("Tracker initialized with legacy backend")
 
     def _predict_tracks(self, dt_seconds):
         """@brief Predicts the state of all active tracks to the current time.
@@ -276,6 +294,15 @@ class Tracker:
         @param adsb_detections_lla (list, optional): List of ADS-B detection dicts with 'lla_position' and 'adsb_info'.
         @return (dict): A dictionary of active Track objects {track_id: Track_object}.
         """
+        # Delegate to Stone Soup tracker if available
+        if self.stone_soup_tracker is not None:
+            return self.stone_soup_tracker.update_all_tracks(
+                all_localised_detections_lla,
+                current_timestamp_ms,
+                adsb_detections_lla
+            )
+        
+        # Fallback to legacy implementation
         if self.last_timestamp_ms is None:
             self.last_timestamp_ms = current_timestamp_ms - (
                 self.config["dt_default_s"] * 1000
