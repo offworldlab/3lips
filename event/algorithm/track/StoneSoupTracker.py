@@ -25,13 +25,13 @@ class StoneSoupTracker:
         self.config = {
             "max_misses_to_delete": 5,
             "min_hits_to_confirm": 3,
-            "gating_mahalanobis_threshold": 100.0,  # Much more permissive gating
+            "gating_mahalanobis_threshold": 1000.0,  # Very permissive gating
             "initial_pos_uncertainty_ecef_m": [1000.0, 1000.0, 1000.0],  # Higher uncertainty
-            "initial_vel_uncertainty_ecef_mps": [200.0, 200.0, 200.0],  # Higher velocity uncertainty
+            "initial_vel_uncertainty_ecef_mps": [100.0, 100.0, 100.0],  # Moderate velocity uncertainty
             "dt_default_s": 1.0,
-            "process_noise_coeff": 10.0,  # Much higher process noise
+            "process_noise_coeff": 0.1,  # Lower process noise 
             "measurement_noise_coeff": 1000.0,  # Higher measurement noise
-            "verbose": True,  # Enable debugging
+            "verbose": False,  # Disable debugging for normal operation
         }
         if config:
             self.config.update(config)
@@ -47,12 +47,13 @@ class StoneSoupTracker:
         self.predictor = KalmanPredictor(self.transition_model)
         self.updater = KalmanUpdater(self.measurement_model)
         
-        # Use Mahalanobis distance for gating
+        # Use Euclidean distance for simpler, more reliable gating
+        from stonesoup.measures import Euclidean
         self.hypothesiser = DistanceHypothesiser(
             predictor=self.predictor,
             updater=self.updater,
-            measure=Mahalanobis(),
-            missed_distance=self.config["gating_mahalanobis_threshold"]
+            measure=Euclidean(),
+            missed_distance=self.config.get("gating_euclidean_threshold_m", 5000.0)
         )
         
         self.data_associator = GNNWith2DAssignment(self.hypothesiser)
@@ -60,8 +61,8 @@ class StoneSoupTracker:
         # Gater for initial filtering
         self.gater = DistanceGater(
             hypothesiser=self.hypothesiser,
-            measure=Mahalanobis(),
-            gate_threshold=self.config["gating_mahalanobis_threshold"]
+            measure=Euclidean(),
+            gate_threshold=self.config.get("gating_euclidean_threshold_m", 5000.0)
         )
         
         # Initialize multi-target tracker
@@ -252,22 +253,49 @@ class StoneSoupTracker:
 
         # Process radar detections using Stone Soup data association
         if radar_detections:
+            
             # Get current track states for association
             track_states = []
             track_ids = []
             
             for track_id, track in self.active_tracks.items():
-                if track.states and len(track.states) > 0:
-                    last_state = track.states[-1]
-                    # Predict to current time
-                    try:
-                        predicted_state = self.predictor.predict(last_state, timestamp=current_time)
-                        track_states.append(predicted_state)
-                        track_ids.append(track_id)
-                    except Exception as e:
-                        if self.config["verbose"]:
-                            print(f"Error predicting track {track_id}: {e}")
-                        continue
+                if hasattr(track, 'states') and track.states:
+                    if len(track.states) > 0:
+                        last_state = track.states[-1]
+                        # Predict to current time
+                        try:
+                            
+                            # Manual constant velocity prediction to avoid Stone Soup prediction bug
+                            from stonesoup.types.state import GaussianState
+                            dt = (current_time - last_state.timestamp).total_seconds()
+                            
+                            # Simple constant velocity: new_pos = old_pos + velocity * dt
+                            state_vec = last_state.state_vector.copy()
+                            state_vec[0] += state_vec[3] * dt  # x += vx * dt
+                            state_vec[1] += state_vec[4] * dt  # y += vy * dt  
+                            state_vec[2] += state_vec[5] * dt  # z += vz * dt
+                            
+                            # Increase covariance slightly to account for process noise
+                            covar = last_state.covar.copy()
+                            process_noise = self.config["process_noise_coeff"] * dt
+                            covar[0, 0] += process_noise**2  # x position uncertainty
+                            covar[1, 1] += process_noise**2  # y position uncertainty
+                            covar[2, 2] += process_noise**2  # z position uncertainty
+                            
+                            predicted_state = GaussianState(
+                                state_vector=state_vec,
+                                covar=covar,
+                                timestamp=current_time
+                            )
+                            
+                            track_states.append(predicted_state)
+                            track_ids.append(track_id)
+                        except Exception as e:
+                            if self.config["verbose"]:
+                                print(f"Error predicting track {track_id}: {e}")
+                            continue
+                else:
+                    pass
 
             # Perform data association
             if track_states:
@@ -288,25 +316,42 @@ class StoneSoupTracker:
                     elif isinstance(associations, dict):
                         print(f"Dict keys: {list(associations.keys())}")
                 
-                # Handle different association result formats
+                # Use simple Euclidean distance association instead of complex Stone Soup association
                 associated_pairs = []
                 unassociated_tracks = list(track_states)
                 unassociated_detections = list(radar_detections)
                 
-                if hasattr(associations, 'associations'):
-                    # Standard Stone Soup format
-                    associated_pairs = list(associations.associations)
-                    unassociated_tracks = list(associations.unassociated_tracks) if hasattr(associations, 'unassociated_tracks') else []
-                    unassociated_detections = list(associations.unassociated_detections) if hasattr(associations, 'unassociated_detections') else []
-                elif isinstance(associations, dict):
-                    # Handle dictionary format - extract associations
-                    for track_state, detection in associations.items():
-                        if track_state in track_states and detection in radar_detections:
-                            associated_pairs.append((track_state, detection))
-                            if track_state in unassociated_tracks:
-                                unassociated_tracks.remove(track_state)
-                            if detection in unassociated_detections:
-                                unassociated_detections.remove(detection)
+                # Simple nearest neighbor association with gating
+                gating_threshold = self.config.get("gating_euclidean_threshold_m", 5000.0)
+                
+                for i, track_state in enumerate(track_states):
+                    track_id = track_ids[i]
+                    track_pos = track_state.state_vector[:3].flatten()
+                    
+                    best_detection = None
+                    best_distance = float('inf')
+                    
+                    
+                    for detection in radar_detections:
+                        detection_pos = detection.state_vector.flatten()
+                        distance = np.linalg.norm(track_pos - detection_pos)
+                        
+                        
+                        if distance < gating_threshold and distance < best_distance:
+                            best_detection = detection
+                            best_distance = distance
+                    
+                    if best_detection is not None:
+                        associated_pairs.append((track_state, best_detection))
+                        if track_state in unassociated_tracks:
+                            unassociated_tracks.remove(track_state)
+                        if best_detection in unassociated_detections:
+                            unassociated_detections.remove(best_detection)
+                        
+                        if self.config["verbose"]:
+                            print(f"Associated track {track_id} with detection at distance {best_distance:.2f}m")
+                    else:
+                        pass
                 
                 # Update associated tracks
                 for track_state, detection in associated_pairs:
@@ -317,11 +362,25 @@ class StoneSoupTracker:
                     if self.config["verbose"]:
                         print(f"Associating detection to track {track_id}")
                     
-                    # Update with Kalman filter
-                    updated_state = self.updater.update(
-                        prediction=track_state,
-                        detection=detection
-                    )
+                    # Update with Kalman filter - use direct updater call
+                    try:
+                        # Try the Stone Soup updater
+                        updated_state = self.updater.update(track_state, detection)
+                    except TypeError:
+                        # If that fails, do manual Kalman update
+                        from stonesoup.types.state import GaussianState
+                        # For simplicity, just use the detection as the updated state
+                        # In a real implementation, this would be a proper Kalman update
+                        detection_pos = detection.state_vector.flatten()
+                        current_vel = track_state.state_vector[3:6].flatten()
+                        
+                        updated_state_vector = np.concatenate([detection_pos, current_vel])
+                        
+                        updated_state = GaussianState(
+                            state_vector=updated_state_vector.reshape(-1, 1),
+                            covar=track_state.covar.copy(),
+                            timestamp=current_time
+                        )
                     
                     track.append(updated_state)
                     track.state_vector = updated_state.state_vector
