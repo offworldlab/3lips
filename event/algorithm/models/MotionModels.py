@@ -1,5 +1,8 @@
-import numpy as np
-from stonesoup.models.transition.linear import CombinedLinearGaussianTransitionModel, ConstantVelocity
+from stonesoup.models.transition.linear import (
+    CombinedLinearGaussianTransitionModel,
+    ConstantAcceleration,
+    ConstantVelocity,
+)
 
 
 def create_ecef_constant_velocity_model(noise_diff_coeff=0.1):
@@ -11,14 +14,11 @@ def create_ecef_constant_velocity_model(noise_diff_coeff=0.1):
     Returns:
         CombinedLinearGaussianTransitionModel for 3D constant velocity motion.
     """
-    # Create three 1D constant velocity models for x, y, z
-    model_list = [
-        ConstantVelocity(noise_diff_coeff),  # x, vx
-        ConstantVelocity(noise_diff_coeff),  # y, vy  
-        ConstantVelocity(noise_diff_coeff)   # z, vz
-    ]
-    
-    return CombinedLinearGaussianTransitionModel(model_list)
+    return CombinedLinearGaussianTransitionModel([
+        ConstantVelocity(noise_diff_coeff),
+        ConstantVelocity(noise_diff_coeff),
+        ConstantVelocity(noise_diff_coeff)
+    ])
 
 
 def create_ecef_constant_acceleration_model(noise_diff_coeff=0.01):
@@ -30,13 +30,8 @@ def create_ecef_constant_acceleration_model(noise_diff_coeff=0.01):
     Returns:
         CombinedLinearGaussianTransitionModel for 3D constant acceleration motion.
     """
-    from stonesoup.models.transition.linear import ConstantAcceleration
-    
-    # Create three 1D constant acceleration models for x, y, z
-    model_list = [
-        ConstantAcceleration(noise_diff_coeff),  # x, vx, ax
-        ConstantAcceleration(noise_diff_coeff),  # y, vy, ay
-        ConstantAcceleration(noise_diff_coeff)   # z, vz, az
-    ]
-    
-    return CombinedLinearGaussianTransitionModel(model_list)
+    return CombinedLinearGaussianTransitionModel([
+        ConstantAcceleration(noise_diff_coeff),
+        ConstantAcceleration(noise_diff_coeff),
+        ConstantAcceleration(noise_diff_coeff)
+    ])

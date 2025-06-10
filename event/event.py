@@ -1,7 +1,4 @@
-"""@file event.py
-@brief Event loop for 3lips.
-@author 30hours
-"""
+"""Event loop for 3lips."""
 
 import asyncio
 import hashlib
@@ -24,10 +21,7 @@ from dotenv import load_dotenv
 
 from common.Message import Message
 
-# Load environment variables
 load_dotenv()
-
-# Initialize configuration from environment variables
 required_vars = {
     "ELLIPSE_N_SAMPLES": int,
     "ELLIPSE_THRESHOLD": int,
@@ -40,14 +34,10 @@ required_vars = {
     "THREE_LIPS_T_DELETE": int,
 }
 
-# Check all required variables are set
 missing_vars = [var for var in required_vars if not os.getenv(var)]
 if missing_vars:
-    raise OSError(
-        f"Missing required environment variables: {', '.join(missing_vars)}",
-    )
+    raise OSError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
-# Load and convert variables
 nSamplesEllipse = int(os.getenv("ELLIPSE_N_SAMPLES"))
 thresholdEllipse = int(os.getenv("ELLIPSE_THRESHOLD"))
 nDisplayEllipse = int(os.getenv("ELLIPSE_N_DISPLAY"))
@@ -58,7 +48,6 @@ tDeleteAdsb = int(os.getenv("ADSB_T_DELETE"))
 save = os.getenv("THREE_LIPS_SAVE").lower() == "true"
 tDelete = int(os.getenv("THREE_LIPS_T_DELETE"))
 
-# Tracker config from environment variables
 tracker_config_params = {
     "verbose": os.environ.get("TRACKER_VERBOSE", "False").lower() == "true",
     "max_misses_to_delete": int(os.environ.get("TRACKER_MAX_MISSES_TO_DELETE", 5)),
@@ -89,10 +78,8 @@ tracker_config_params = {
 }
 verbose_tracker = tracker_config_params["verbose"]
 
-# init event loop
 api = []
 
-# Dynamically load associator class from environment variable
 associator_type = os.getenv("ASSOCIATOR_TYPE", "AdsbAssociator")
 try:
     associator_module = importlib.import_module(
@@ -101,9 +88,7 @@ try:
     associator_class = getattr(associator_module, associator_type)
     associator = associator_class()
 except (ModuleNotFoundError, AttributeError) as e:
-    print(
-        f"Warning: Could not load associator '{associator_type}', defaulting to AdsbAssociator. Error: {e}",
-    )
+    print(f"Warning: Could not load associator '{associator_type}', defaulting to AdsbAssociator. Error: {e}")
     from algorithm.associator.AdsbAssociator import AdsbAssociator
 
     associator = AdsbAssociator()
@@ -124,9 +109,7 @@ sphericalIntersection = SphericalIntersection()
 adsbTruth = AdsbTruth(tDeleteAdsb)
 saveFile = "/app/save/" + str(int(time.time())) + ".ndjson"
 
-# --- Tracker Integration: Initialize Global Tracker ---
 global_tracker = Tracker(config=tracker_config_params)
-# --- End Tracker Integration ---
 
 
 async def event():
@@ -144,24 +127,19 @@ async def event():
     api_event_configs_this_cycle = [
         c for c in api if (timestamp - c.get("timestamp", 0) <= tDelete * 1000)
     ]
-    print(
-        f"DEBUG: Found {len(api_event_configs_this_cycle)} API configs for processing",
-    )
+    print(f"DEBUG: Found {len(api_event_configs_this_cycle)} API configs for processing")
     for i, config in enumerate(api_event_configs_this_cycle):
-        print(
-            f"DEBUG: Config {i}: hash={config.get('hash')}, adsb={config.get('adsb')}, timestamp={config.get('timestamp')}",
-        )
+        print(f"DEBUG: Config {i}: hash={config.get('hash')}, adsb={config.get('adsb')}, timestamp={config.get('timestamp')}")
 
     def translate_localhost_to_container(server):
         """Translate localhost URLs to container names for inter-container communication."""
         if server == "localhost:5001":
             return "synthetic-adsb:5001"
-        elif server.startswith("localhost:491"):  # localhost:49158, 49159, 49160
+        elif server.startswith("localhost:491"):
             port = server.split(":")[1]
             return f"synthetic-adsb:{port}"
         return server
 
-    # 1. Aggregate unique radar names
     radar_names = []
     for item_config in api_event_configs_this_cycle:
         if "server" in item_config and isinstance(item_config["server"], list):
@@ -169,14 +147,10 @@ async def event():
                 radar_names.append(radar_url_name)
     radar_names = list(set(radar_names))
     
-    # Translate localhost URLs to container names for inter-container communication
     radar_names = [translate_localhost_to_container(name) for name in radar_names]
 
-    # 2. Fetch data from all unique radars
     radar_dict = {}
-    radar_detections_url = [
-        "http://" + radar_name + "/api/detection" for radar_name in radar_names
-    ]
+    radar_detections_url = [f"http://{radar_name}/api/detection" for radar_name in radar_names]
     radar_detections = []
     for url in radar_detections_url:
         try:
@@ -188,9 +162,7 @@ async def event():
             print(f"Error fetching data from {url}: {e}")
             radar_detections.append(None)
 
-    radar_config_url = [
-        "http://" + radar_name + "/api/config" for radar_name in radar_names
-    ]
+    radar_config_url = [f"http://{radar_name}/api/config" for radar_name in radar_names]
     radar_config = []
     for url in radar_config_url:
         try:
@@ -208,7 +180,6 @@ async def event():
             "config": radar_config[i],
         }
 
-    # 3. Fetch ADS-B truth data
     truth_adsb = {}
     adsb_urls = []
     for item in api_event_configs_this_cycle:
@@ -221,12 +192,9 @@ async def event():
         print(f"DEBUG: adsbTruth.process returned: {type(result)}, content: {result}")
         truth_adsb[url] = result
 
-    # --- Processing Starts ---
     all_localised_points_for_tracker_input_this_scan = []
     processed_api_request_outputs = []
     unique_lla_points_for_tracker_keys = set()
-
-    # --- Pass 1: Process each API request config & Collect Localised Points for Tracker ---
     for item_config in api_event_configs_this_cycle:
         item_processing_start_time = time.time()
         item_radars = item_config.get("server", [])
@@ -245,9 +213,7 @@ async def event():
             radar_dict_item.get(r) and radar_dict_item[r].get("config")
             for r in item_radars_translated
         ):
-            print(
-                f"Skipping item {item_config.get('hash')} due to missing radar data/config for its servers.",
-            )
+            print(f"Skipping item {item_config.get('hash')} due to missing radar data/config for its servers.")
             temp_output = item_config.copy()
             temp_output["timestamp_event"] = timestamp
             temp_output["error"] = "Missing radar data/config for configured servers."
@@ -272,9 +238,7 @@ async def event():
         elif localisation_id == "spherical-intersection":
             localisation_algorithm = sphericalIntersection
         else:
-            print(
-                f"Error: Localisation algorithm '{localisation_id}' invalid for item {item_config.get('hash')}.",
-            )
+            print(f"Error: Localisation algorithm '{localisation_id}' invalid for item {item_config.get('hash')}.")
             error_output = item_config.copy()
             error_output.update(
                 {
@@ -342,9 +306,7 @@ async def event():
                                 },
                             )
                     elif verbose_tracker:
-                        print(
-                            f"Skipping malformed point for tracker input: {point_lla}",
-                        )
+                        print(f"Skipping malformed point for tracker input: {point_lla}")
         # Calculate ellipsoids for display
         ellipsoids_for_item = {}
         if localisation_id in [
@@ -419,10 +381,7 @@ async def event():
             item_processing_stop_time - item_processing_start_time
         )
         if verbose_tracker:
-            print(
-                f"{timestamp}: Item {item_config.get('hash')} Method: {localisation_id}, Time: {output_for_this_item['time']:.4f}s",
-                flush=True,
-            )
+            print(f"{timestamp}: Item {item_config.get('hash')} Method: {localisation_id}, Time: {output_for_this_item['time']:.4f}s", flush=True)
         processed_api_request_outputs.append(output_for_this_item)
 
     # --- Pass 2: Update Global Tracker with all unique localised points from this scan ---
@@ -435,9 +394,7 @@ async def event():
         )
 
         if verbose_tracker:
-            print(
-                f"{timestamp}: Updating global_tracker with {len(all_localised_points_for_tracker_input_this_scan)} unique radar points and {len(all_adsb_detections_for_tracker)} ADS-B detections.",
-            )
+            print(f"{timestamp}: Updating global_tracker with {len(all_localised_points_for_tracker_input_this_scan)} unique radar points and {len(all_adsb_detections_for_tracker)} ADS-B detections.")
 
         current_system_tracks_map = global_tracker.update_all_tracks(
             all_localised_points_for_tracker_input_this_scan,
@@ -448,10 +405,7 @@ async def event():
         track.to_dict() for track in current_system_tracks_map.values()
     ]
     if verbose_tracker and serializable_system_tracks:
-        print(
-            f"{timestamp}: Global System Tracks ({len(serializable_system_tracks)} generated): {[t['track_id'] for t in serializable_system_tracks]}",
-            flush=True,
-        )
+        print(f"{timestamp}: Global System Tracks ({len(serializable_system_tracks)} generated): {[t['track_id'] for t in serializable_system_tracks]}", flush=True)
 
     # --- Pass 3: Augment each API request's output with the global system tracks & Manage API list ---
     final_api_list_for_this_cycle = []
@@ -475,9 +429,7 @@ async def event():
                 f"{timestamp}: API Config {item_hash} (orig_ts: {original_config.get('timestamp', 'N/A')}) timed out. Not including in final output.",
             )
         elif verbose_tracker and not original_config:
-            print(
-                f"{timestamp}: Warning - Processed item {item_hash} not found in original configs for timeout check.",
-            )
+            print(f"{timestamp}: Warning - Processed item {item_hash} not found in original configs for timeout check.")
     api = final_api_list_for_this_cycle
     if save and api:
         append_api_to_file(api)
@@ -487,9 +439,13 @@ async def event():
 
 def convert_adsb_truth_to_tracker_format(truth_adsb, timestamp_ms):
     """Convert ADS-B truth data to tracker-compatible format.
-    @param truth_adsb (dict): ADS-B truth data from adsbTruth.process()
-    @param timestamp_ms (int): Current timestamp in milliseconds
-    @return (list): List of ADS-B detection dicts for tracker input
+    
+    Args:
+        truth_adsb: ADS-B truth data from adsbTruth.process()
+        timestamp_ms: Current timestamp in milliseconds
+        
+    Returns:
+        List of ADS-B detection dicts for tracker input
     """
     adsb_detections = []
 
@@ -519,20 +475,15 @@ def convert_adsb_truth_to_tracker_format(truth_adsb, timestamp_ms):
 
             except Exception as e:
                 if verbose_tracker:
-                    print(
-                        f"Error converting ADS-B aircraft {hex_code} to tracker format: {e}",
-                    )
+                    print(f"Error converting ADS-B aircraft {hex_code} to tracker format: {e}")
                 continue
 
     if verbose_tracker and adsb_detections:
-        print(
-            f"{timestamp_ms}: Converted {len(adsb_detections)} ADS-B aircraft to tracker format",
-        )
+        print(f"{timestamp_ms}: Converted {len(adsb_detections)} ADS-B aircraft to tracker format")
 
     return adsb_detections
 
 
-# event loop
 async def main():
     while True:
         await event()
@@ -555,7 +506,6 @@ def short_hash(input_string, length=10):
     return short_hash
 
 
-# message received callback
 async def callback_message_received(msg):
     global api, verbose_tracker
     timestamp_receipt = int(time.time() * 1000)
@@ -568,9 +518,7 @@ async def callback_message_received(msg):
         existing_item["timestamp"] = timestamp_receipt
         output_for_client = json.dumps(existing_item)
         if verbose_tracker:
-            print(
-                f"{timestamp_receipt}: Updated timestamp for existing API config: {msg_hash}",
-            )
+            print(f"{timestamp_receipt}: Updated timestamp for existing API config: {msg_hash}")
     else:
         new_api_item = {"hash": msg_hash, "timestamp": timestamp_receipt}
         try:
@@ -583,26 +531,18 @@ async def callback_message_received(msg):
                     new_api_item[key].append(value)
                 else:
                     new_api_item[key] = value
-            if "server" in new_api_item and not isinstance(
-                new_api_item["server"],
-                list,
-            ):
+            if "server" in new_api_item and not isinstance(new_api_item["server"], list):
                 new_api_item["server"] = [new_api_item["server"]]
             api.append(new_api_item)
             output_for_client = json.dumps(new_api_item)
             if verbose_tracker:
-                print(
-                    f"{timestamp_receipt}: Added new API config: {msg_hash} - {new_api_item}",
-                )
+                print(f"{timestamp_receipt}: Added new API config: {msg_hash} - {new_api_item}")
         except ValueError as e:
             print(f"Error parsing API request message '{msg}': {e}")
-            output_for_client = json.dumps(
-                {"error": "Invalid API request format", "request": msg},
-            )
+            output_for_client = json.dumps({"error": "Invalid API request format", "request": msg})
     return output_for_client
 
 
-# init messaging
 message_api_request = Message("0.0.0.0", 6969)  # nosec B104 - intentional for Docker networking
 message_api_request.set_callback_message_received(callback_message_received)
 

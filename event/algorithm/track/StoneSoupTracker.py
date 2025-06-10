@@ -89,10 +89,9 @@ class StoneSoupTracker:
             try:
                 lat, lon, alt = det_data["lla_position"]
                 x_ecef, y_ecef, z_ecef = Geometry.lla2ecef(lat, lon, alt)
-                measurement_pos_ecef = np.array([x_ecef, y_ecef, z_ecef])
                 
                 detection = Detection(
-                    state_vector=measurement_pos_ecef,
+                    state_vector=np.array([x_ecef, y_ecef, z_ecef]),
                     timestamp=datetime.fromtimestamp(timestamp_ms / 1000.0),
                     metadata=det_data
                 )
@@ -107,15 +106,10 @@ class StoneSoupTracker:
 
     def _initiate_new_track(self, detection, status=TrackStatus.TENTATIVE):
         """Create new track from unassociated detection."""
-        measurement_pos_ecef = detection.state_vector.flatten()  # Flatten to 1D
+        measurement_pos_ecef = detection.state_vector.flatten()
         
-        # Initial state: position + zero velocity
-        initial_state_vector = np.concatenate([
-            measurement_pos_ecef,
-            np.zeros(3)  # Zero initial velocity
-        ])
+        initial_state_vector = np.concatenate([measurement_pos_ecef, np.zeros(3)])
         
-        # Initial covariance
         pos_uncertainty = np.array(self.config["initial_pos_uncertainty_ecef_m"])
         vel_uncertainty = np.array(self.config["initial_vel_uncertainty_ecef_mps"])
         
@@ -124,18 +118,15 @@ class StoneSoupTracker:
             [np.zeros((3, 3)), np.diag(vel_uncertainty**2)]
         ])
         
-        # Create Gaussian state
         initial_state = GaussianState(
             state_vector=initial_state_vector,
             covar=initial_covariance,
             timestamp=detection.timestamp
         )
         
-        # Extract metadata
         metadata = detection.metadata if hasattr(detection, 'metadata') else {}
         adsb_info = metadata.get("adsb_info", None)
         
-        # Create Track object
         new_track = Track(
             initial_detection=metadata,
             timestamp_ms=int(detection.timestamp.timestamp() * 1000),
@@ -143,7 +134,6 @@ class StoneSoupTracker:
             adsb_info=adsb_info
         )
         
-        # Add initial state
         new_track.append(initial_state)
         new_track.state_vector = initial_state_vector
         new_track.covariance_matrix = initial_covariance
@@ -208,24 +198,18 @@ class StoneSoupTracker:
                 adsb_detections_lla, current_timestamp_ms
             )
 
-        # Process ADS-B detections first (create confirmed tracks)
         for detection in adsb_detections:
-            # For ADS-B, create confirmed tracks directly or update existing ones
             associated = False
             
-            # Try to associate with existing tracks
             for track_id, track in self.active_tracks.items():
                 if track.states and len(track.states) > 0:
                     last_state = track.states[-1]
                     
-                    # Predict to current time
                     predicted_state = self.predictor.predict(last_state, timestamp=current_time)
                     
-                    # Check if detection is within gate
                     try:
                         gated_detections = self.gater.gate_state([detection], predicted_state)
                         if gated_detections:
-                            # Update track
                             updated_state = self.updater.update(
                                 prediction=predicted_state,
                                 detection=detection
@@ -247,81 +231,52 @@ class StoneSoupTracker:
                             print(f"Error in ADS-B association for track {track_id}: {e}")
                         continue
             
-            # Create new confirmed track if not associated
             if not associated:
                 self._initiate_new_track(detection, status=TrackStatus.CONFIRMED)
 
-        # Process radar detections using Stone Soup data association
         if radar_detections:
-            
-            # Get current track states for association
             track_states = []
             track_ids = []
             
             for track_id, track in self.active_tracks.items():
-                if hasattr(track, 'states') and track.states:
-                    if len(track.states) > 0:
-                        last_state = track.states[-1]
-                        # Predict to current time
-                        try:
-                            
-                            # Manual constant velocity prediction to avoid Stone Soup prediction bug
-                            from stonesoup.types.state import GaussianState
-                            dt = (current_time - last_state.timestamp).total_seconds()
-                            
-                            # Simple constant velocity: new_pos = old_pos + velocity * dt
-                            state_vec = last_state.state_vector.copy()
-                            state_vec[0] += state_vec[3] * dt  # x += vx * dt
-                            state_vec[1] += state_vec[4] * dt  # y += vy * dt  
-                            state_vec[2] += state_vec[5] * dt  # z += vz * dt
-                            
-                            # Increase covariance slightly to account for process noise
-                            covar = last_state.covar.copy()
-                            process_noise = self.config["process_noise_coeff"] * dt
-                            covar[0, 0] += process_noise**2  # x position uncertainty
-                            covar[1, 1] += process_noise**2  # y position uncertainty
-                            covar[2, 2] += process_noise**2  # z position uncertainty
-                            
-                            predicted_state = GaussianState(
-                                state_vector=state_vec,
-                                covar=covar,
-                                timestamp=current_time
-                            )
-                            
-                            track_states.append(predicted_state)
-                            track_ids.append(track_id)
-                        except Exception as e:
-                            if self.config["verbose"]:
-                                print(f"Error predicting track {track_id}: {e}")
-                            continue
-                else:
-                    pass
+                if hasattr(track, 'states') and track.states and len(track.states) > 0:
+                    last_state = track.states[-1]
+                    try:
+                        from stonesoup.types.state import GaussianState
+                        dt = (current_time - last_state.timestamp).total_seconds()
+                        
+                        state_vec = last_state.state_vector.copy()
+                        state_vec[0] += state_vec[3] * dt
+                        state_vec[1] += state_vec[4] * dt
+                        state_vec[2] += state_vec[5] * dt
+                        
+                        covar = last_state.covar.copy()
+                        process_noise = self.config["process_noise_coeff"] * dt
+                        covar[0, 0] += process_noise**2
+                        covar[1, 1] += process_noise**2
+                        covar[2, 2] += process_noise**2
+                        
+                        predicted_state = GaussianState(
+                            state_vector=state_vec,
+                            covar=covar,
+                            timestamp=current_time
+                        )
+                        
+                        track_states.append(predicted_state)
+                        track_ids.append(track_id)
+                    except Exception as e:
+                        if self.config["verbose"]:
+                            print(f"Error predicting track {track_id}: {e}")
+                        continue
 
-            # Perform data association
             if track_states:
                 if self.config["verbose"]:
                     print(f"[STONE_SOUP] Starting data association with {len(track_states)} tracks and {len(radar_detections)} detections")
                 
-                associations = self.data_associator.associate(
-                    tracks=track_states,
-                    detections=radar_detections,
-                    timestamp=current_time
-                )
-                
-                if self.config["verbose"]:
-                    print(f"Stone Soup association result type: {type(associations)}")
-                    print(f"Association result attributes: {dir(associations)}")
-                    if hasattr(associations, 'associations'):
-                        print(f"Has associations attribute: {len(associations.associations)} associations")
-                    elif isinstance(associations, dict):
-                        print(f"Dict keys: {list(associations.keys())}")
-                
-                # Use simple Euclidean distance association instead of complex Stone Soup association
                 associated_pairs = []
                 unassociated_tracks = list(track_states)
                 unassociated_detections = list(radar_detections)
                 
-                # Simple nearest neighbor association with gating
                 gating_threshold = self.config.get("gating_euclidean_threshold_m", 5000.0)
                 
                 for i, track_state in enumerate(track_states):
@@ -331,11 +286,9 @@ class StoneSoupTracker:
                     best_detection = None
                     best_distance = float('inf')
                     
-                    
                     for detection in radar_detections:
                         detection_pos = detection.state_vector.flatten()
                         distance = np.linalg.norm(track_pos - detection_pos)
-                        
                         
                         if distance < gating_threshold and distance < best_distance:
                             best_detection = detection
@@ -350,10 +303,7 @@ class StoneSoupTracker:
                         
                         if self.config["verbose"]:
                             print(f"Associated track {track_id} with detection at distance {best_distance:.2f}m")
-                    else:
-                        pass
                 
-                # Update associated tracks
                 for track_state, detection in associated_pairs:
                     track_idx = track_states.index(track_state)
                     track_id = track_ids[track_idx]
@@ -362,15 +312,10 @@ class StoneSoupTracker:
                     if self.config["verbose"]:
                         print(f"Associating detection to track {track_id}")
                     
-                    # Update with Kalman filter - use direct updater call
                     try:
-                        # Try the Stone Soup updater
                         updated_state = self.updater.update(track_state, detection)
                     except TypeError:
-                        # If that fails, do manual Kalman update
                         from stonesoup.types.state import GaussianState
-                        # For simplicity, just use the detection as the updated state
-                        # In a real implementation, this would be a proper Kalman update
                         detection_pos = detection.state_vector.flatten()
                         current_vel = track_state.state_vector[3:6].flatten()
                         
@@ -388,9 +333,8 @@ class StoneSoupTracker:
                     track.update_custom(detection.metadata if hasattr(detection, 'metadata') else {})
                     track.increment_age()
                 
-                # Handle unassociated tracks
                 for track_state in unassociated_tracks:
-                    if track_state in track_states:  # Ensure it's an existing track
+                    if track_state in track_states:
                         track_idx = track_states.index(track_state)
                         track_id = track_ids[track_idx]
                         track = self.active_tracks[track_id]
@@ -398,7 +342,6 @@ class StoneSoupTracker:
                         if self.config["verbose"]:
                             print(f"Track {track_id} unassociated, predicting...")
                         
-                        # Predict without update
                         predicted_state = self.predictor.predict(track.states[-1], timestamp=current_time)
                         track.append(predicted_state)
                         track.state_vector = predicted_state.state_vector
@@ -406,17 +349,14 @@ class StoneSoupTracker:
                         track.increment_misses()
                         track.increment_age()
                 
-                # Create new tracks for unassociated detections
                 for detection in unassociated_detections:
                     if self.config["verbose"]:
                         print(f"Creating new track for unassociated detection")
                     self._initiate_new_track(detection, status=TrackStatus.TENTATIVE)
             else:
-                # No existing tracks, create new ones for all detections
                 for detection in radar_detections:
                     self._initiate_new_track(detection, status=TrackStatus.TENTATIVE)
         else:
-            # No radar detections, just predict existing tracks
             for track_id, track in self.active_tracks.items():
                 if track.states and len(track.states) > 0:
                     try:
@@ -430,10 +370,8 @@ class StoneSoupTracker:
                         if self.config["verbose"]:
                             print(f"Error predicting track {track_id}: {e}")
 
-        # Manage track lifecycle
         self._manage_track_lifecycle()
 
-        # Log track states
         if self.config["verbose"]:
             self._log_all_track_states(current_timestamp_ms)
 
