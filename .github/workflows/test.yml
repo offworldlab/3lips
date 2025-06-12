@@ -1,0 +1,164 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Build event service
+        run: |
+          cd event
+          docker build -t 3lips-event-test .
+
+      - name: Run unit tests
+        run: |
+          docker run --rm -v $(pwd)/event:/app -w /app 3lips-event-test python -m pytest test/ -v
+
+  integration-tests:
+    name: Puppeteer Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Puppeteer
+        run: |
+          npm install puppeteer
+
+      - name: Start test services
+        run: |
+          cd tests
+          docker compose -f docker-compose.test.yml up -d
+          # Wait for services to be ready
+          sleep 30
+
+      - name: Verify services are running
+        run: |
+          chmod +x tests/verify-services.sh
+          ./tests/verify-services.sh
+
+      - name: Run Puppeteer smoke test
+        run: |
+          node -e "
+          const puppeteer = require('puppeteer');
+          const fs = require('fs');
+
+          async function runSmokeTest() {
+            const browser = await puppeteer.launch({ 
+              headless: true,
+              args: ['--no-sandbox', '--disable-setuid-sandbox']
+            });
+            const page = await browser.newPage();
+            
+            console.log('🚀 Running 3lips smoke test...');
+            
+            let passed = 0;
+            let failed = 0;
+            
+            function addCheck(name, success, details = '') {
+              if (success) {
+                passed++;
+                console.log(\`✅ \${name}\`);
+              } else {
+                failed++;
+                console.log(\`❌ \${name}: \${details}\`);
+              }
+            }
+            
+            try {
+              console.log('🌐 Test 1: Page loads');
+              await page.goto('http://localhost:5000', { waitUntil: 'networkidle0' });
+              addCheck('Page loads', true);
+              
+              console.log('🏷️ Test 2: Correct title');
+              const title = await page.title();
+              const hasCorrectTitle = title && title.includes('3lips');
+              addCheck('Correct title', hasCorrectTitle, hasCorrectTitle ? title : \`Got: \${title}\`);
+              
+              console.log('📋 Test 3: Form exists');
+              const hasForm = await page.\$('form') !== null;
+              addCheck('Form exists', hasForm, hasForm ? 'Found' : 'Missing form element');
+              
+              console.log('▶️ Test 4: API button exists');
+              const hasApiButton = await page.\$('#buttonApi') !== null;
+              addCheck('API button exists', hasApiButton, hasApiButton ? 'Found' : 'Missing #buttonApi');
+              
+              console.log('🗺️ Test 5: Map button exists');
+              const hasMapButton = await page.\$('#buttonMap') !== null;
+              addCheck('Map button exists', hasMapButton, hasMapButton ? 'Found' : 'Missing #buttonMap');
+              
+              console.log('📸 Test 6: Take screenshot');
+              await page.screenshot({ path: 'smoke-test-result.png' });
+              addCheck('Screenshot captured', true, 'smoke-test-result.png');
+              
+              const allPassed = failed === 0;
+              
+              console.log(\`\\n📊 Smoke Test Results:\`);
+              console.log(\`✅ Passed: \${passed}\`);
+              console.log(\`❌ Failed: \${failed}\`);
+              console.log(\`🎯 Overall: \${allPassed ? 'PASS' : 'FAIL'}\`);
+              
+              if (allPassed) {
+                console.log('🎉 3lips is working correctly!');
+              } else {
+                console.log('⚠️ Issues detected - check failed tests above');
+                process.exit(1);
+              }
+              
+            } catch (error) {
+              console.error('💥 Smoke test failed with error:', error.message);
+              process.exit(1);
+            } finally {
+              await browser.close();
+            }
+          }
+          
+          runSmokeTest();
+          "
+
+      - name: Test API endpoint
+        run: |
+          # Wait a moment for services to be fully ready
+          sleep 5
+          # Test API endpoint returns valid JSON
+          curl -f http://localhost:5000/api || exit 1
+
+      - name: Test Map endpoint
+        run: |
+          # Test that Cesium service is accessible
+          curl -f http://localhost:8080 || exit 1
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-screenshots
+          path: |
+            smoke-test-result.png
+            tests/logs/
+
+      - name: Clean up test services
+        if: always()
+        run: |
+          cd tests
+          docker compose -f docker-compose.test.yml down -v
