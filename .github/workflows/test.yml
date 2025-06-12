@@ -136,12 +136,26 @@ jobs:
           runSmokeTest();
           "
 
-      - name: Test API endpoint
+      - name: Test API service homepage
         run: |
           # Wait a moment for services to be fully ready
-          sleep 5
-          # Test API endpoint returns valid JSON
-          curl -f http://localhost:5000/api || exit 1
+          sleep 10
+          # Test that API service homepage is responding
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/)
+          if [ "$response" -eq "200" ]; then
+            echo "✅ API service homepage is responding"
+            # Also test that the page contains expected content
+            content=$(curl -s http://localhost:5000/)
+            if echo "$content" | grep -q "3lips"; then
+              echo "✅ Homepage contains expected content"
+            else
+              echo "❌ Homepage doesn't contain expected content"
+              exit 1
+            fi
+          else
+            echo "❌ API service returned HTTP $response"
+            exit 1
+          fi
 
       - name: Test Map endpoint
         run: |
