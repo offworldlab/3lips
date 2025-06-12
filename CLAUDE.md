@@ -74,13 +74,13 @@ git checkout -b issue-##-brief-description
 
 ### 3. Testing Requirements
 - **All new business logic MUST have corresponding tests**
-- Add tests in `test/event/` following existing patterns
+- Add tests in `tests/unit/event/` following existing patterns
 - Ensure tests cover edge cases and error conditions
 - **Run Puppeteer integration tests after ANY change to verify system functionality**
 - Run tests to verify functionality:
 ```bash
 # Run unit tests in event container
-docker exec -it 3lips-event python -m pytest test/
+docker exec -it 3lips-event python -m pytest tests/unit/
 
 # Run Puppeteer integration tests (REQUIRED after changes)
 ./tests/verify-services.sh
@@ -151,7 +151,7 @@ Before submitting PR, verify:
 ## Testing
 
 ### Unit Tests
-Tests are located in `test/event/` and focus on geometry calculations and detection association. Run tests within the event container environment.
+Tests are located in `tests/unit/event/` and focus on geometry calculations and detection association. Run tests within the event container environment.
 
 **Unit Test Requirements:**
 - All new business logic must have corresponding unit tests
@@ -174,7 +174,7 @@ The Puppeteer test suite validates:
 
 # 2. Use Claude Code with Puppeteer MCP to run tests:
 # Load tests/smoke-test.js for quick validation, or
-# Use tests/puppeteer/ directory for comprehensive testing
+# Use tests/integration/ directory for comprehensive testing
 
 # 3. Validate core functionality:
 # - Page loads at localhost:5000

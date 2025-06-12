@@ -9,7 +9,7 @@ This test suite provides comprehensive testing of the 3lips multi-static radar s
 ## Test Structure
 
 ```
-tests/puppeteer/
+tests/integration/
 ├── config/
 │   └── test.config.js          # Test configuration and URLs
 ├── tests/
@@ -17,7 +17,6 @@ tests/puppeteer/
 │   ├── mvp-api.test.js         # API endpoints tests (Priority 1)
 │   ├── mvp-service-comm.test.js # Service communication tests (Priority 1)
 │   └── mvp-map-ui.test.js      # Map/UI tests (Priority 2)
-├── docker-compose.test.yml     # Test environment setup
 └── README.md                   # This file
 ```
 
@@ -97,7 +96,7 @@ Use Claude Code's Puppeteer MCP commands to run the tests:
 #### 1. Configuration UI Tests
 ```javascript
 // Load and execute configuration tests
-const configTests = require('./tests/puppeteer/tests/mvp-config.test.js');
+const configTests = require('./tests/integration/tests/mvp-config.test.js');
 const results = await configTests.testConfigurationUIWithPuppeteer(
   puppeteer_navigate, 
   puppeteer_screenshot, 
@@ -108,7 +107,7 @@ const results = await configTests.testConfigurationUIWithPuppeteer(
 #### 2. API Endpoint Tests
 ```javascript
 // Load and execute API tests
-const apiTests = require('./tests/puppeteer/tests/mvp-api.test.js');
+const apiTests = require('./tests/integration/tests/mvp-api.test.js');
 const results = await apiTests.testAPIEndpointsWithPuppeteer(
   puppeteer_navigate, 
   puppeteer_screenshot, 
@@ -119,7 +118,7 @@ const results = await apiTests.testAPIEndpointsWithPuppeteer(
 #### 3. Service Communication Tests
 ```javascript
 // Load and execute service communication tests
-const serviceTests = require('./tests/puppeteer/tests/mvp-service-comm.test.js');
+const serviceTests = require('./tests/integration/tests/mvp-service-comm.test.js');
 const results = await serviceTests.testServiceCommunicationWithPuppeteer(
   puppeteer_navigate, 
   puppeteer_screenshot, 
@@ -130,7 +129,7 @@ const results = await serviceTests.testServiceCommunicationWithPuppeteer(
 #### 4. Map UI Tests
 ```javascript
 // Load and execute map UI tests
-const mapTests = require('./tests/puppeteer/tests/mvp-map-ui.test.js');
+const mapTests = require('./tests/integration/tests/mvp-map-ui.test.js');
 const results = await mapTests.testMapUIWithPuppeteer(
   puppeteer_navigate, 
   puppeteer_screenshot, 

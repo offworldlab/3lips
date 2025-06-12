@@ -2,9 +2,9 @@ name: Test Suite
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main]
 
 jobs:
   unit-tests:
@@ -26,7 +26,7 @@ jobs:
 
       - name: Run unit tests
         run: |
-          docker run --rm -v $(pwd)/event:/app -w /app 3lips-event-test python -m pytest test/ -v
+          docker run --rm -v $(pwd)/event:/app -v $(pwd)/tests/unit:/app/tests/unit -w /app 3lips-event-test python -m pytest tests/unit/ -v
 
   integration-tests:
     name: Puppeteer Integration Tests
