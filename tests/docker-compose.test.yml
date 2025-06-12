@@ -1,0 +1,123 @@
+version: '3.8'
+
+networks:
+  3lips-test:
+    driver: bridge
+  retina-test-network:
+    driver: bridge
+
+services:
+
+  api:
+    build:
+      context: ..
+      dockerfile: ./api/Dockerfile
+    image: 3lips-api-test
+    ports:
+      - "8080:5000"
+    networks:
+      - 3lips-test
+      - retina-test-network
+    volumes:
+      - ../config:/app/config
+      - ../common:/app/common
+    container_name: 3lips-api-test
+    environment:
+      - RADAR_NAMES=radar1,radar2
+      - RADAR_URLS=http://synthetic-radar1:5000,http://synthetic-radar2:5000
+      - MAP_LATITUDE=37.7749
+      - MAP_LONGITUDE=-122.4194
+      - MAP_CENTER_WIDTH=50000
+      - MAP_CENTER_HEIGHT=40000
+      - TAR1090_URL=synthetic-adsb-test:5001
+    depends_on:
+      - event
+      - synthetic-adsb
+
+  event:
+    build:
+      context: ../event
+      dockerfile: Dockerfile
+    image: 3lips-event-test
+    networks:
+      - 3lips-test
+      - retina-test-network
+    volumes:
+      - ../config:/app/config
+      - ../common:/app/common
+      - ../test:/app/test
+      - ../save:/app/save
+    container_name: 3lips-event-test
+    environment:
+      - RADAR_NAMES=radar1,radar2
+      - RADAR_URLS=http://synthetic-radar1:5000,http://synthetic-radar2:5000
+      - TAR1090_URL=synthetic-adsb-test:5001
+
+  cesium-apache:
+    build:
+      context: ../cesium
+      dockerfile: Dockerfile
+    image: cesium-apache-test
+    ports:
+      - "8081:8080"
+    networks:
+      - 3lips-test
+    container_name: 3lips-cesium-test
+
+  synthetic-adsb:
+    build:
+      context: ../../synthetic-adsb
+      dockerfile: Dockerfile
+    image: synthetic-adsb-test
+    ports:
+      - "5001:5001"
+    networks:
+      - retina-test-network
+    container_name: synthetic-adsb-test
+    environment:
+      - HOST=0.0.0.0
+      - PORT=5001
+
+  adsb2dd:
+    build:
+      context: ../../adsb2dd
+      dockerfile: Dockerfile
+    image: adsb2dd-test
+    ports:
+      - "49155:3000"
+    networks:
+      - retina-test-network
+    container_name: adsb2dd-test
+    environment:
+      - NODE_ENV=test
+      - PORT=3000
+
+  synthetic-radar1:
+    build:
+      context: ../../synthetic-adsb
+      dockerfile: Dockerfile
+    image: synthetic-radar1-test
+    ports:
+      - "49158:5000"
+    networks:
+      - retina-test-network
+    container_name: synthetic-radar1-test
+    environment:
+      - HOST=0.0.0.0
+      - PORT=5000
+      - RADAR_NAME=radar1
+
+  synthetic-radar2:
+    build:
+      context: ../../synthetic-adsb
+      dockerfile: Dockerfile
+    image: synthetic-radar2-test
+    ports:
+      - "49159:5000"
+    networks:
+      - retina-test-network
+    container_name: synthetic-radar2-test
+    environment:
+      - HOST=0.0.0.0
+      - PORT=5000
+      - RADAR_NAME=radar2
