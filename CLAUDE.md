@@ -76,10 +76,15 @@ git checkout -b issue-##-brief-description
 - **All new business logic MUST have corresponding tests**
 - Add tests in `test/event/` following existing patterns
 - Ensure tests cover edge cases and error conditions
+- **Run Puppeteer integration tests after ANY change to verify system functionality**
 - Run tests to verify functionality:
 ```bash
-# Run tests in event container
+# Run unit tests in event container
 docker exec -it 3lips-event python -m pytest test/
+
+# Run Puppeteer integration tests (REQUIRED after changes)
+./tests/verify-services.sh
+# Then use Claude Code with Puppeteer MCP to run full test suite
 ```
 
 ### 4. Code Review Process
@@ -137,6 +142,7 @@ Closes #[issue-number]
 Before submitting PR, verify:
 - [ ] Branch name follows `issue-##-brief-description` pattern
 - [ ] All new business logic has tests
+- [ ] **Puppeteer integration tests pass** (verify with `./tests/verify-services.sh`)
 - [ ] Code is minimal and idiomatic
 - [ ] No unnecessary comments added
 - [ ] Pre-commit hooks pass without issues
@@ -144,12 +150,46 @@ Before submitting PR, verify:
 
 ## Testing
 
+### Unit Tests
 Tests are located in `test/event/` and focus on geometry calculations and detection association. Run tests within the event container environment.
 
-**Test Requirements:**
+**Unit Test Requirements:**
 - All new business logic must have corresponding unit tests
 - Tests should cover normal operation, edge cases, and error conditions
 - Follow existing test patterns and naming conventions
+
+### Integration Tests (Puppeteer MCP)
+**CRITICAL: Run Puppeteer tests after ANY system change to verify end-to-end functionality.**
+
+The Puppeteer test suite validates:
+- API endpoints and form functionality
+- Service communication between components
+- Cesium 3D map integration and visualization
+- Configuration UI and user interactions
+
+**How to run:**
+```bash
+# 1. Verify all services are running
+./tests/verify-services.sh
+
+# 2. Use Claude Code with Puppeteer MCP to run tests:
+# Load tests/smoke-test.js for quick validation, or
+# Use tests/puppeteer/ directory for comprehensive testing
+
+# 3. Validate core functionality:
+# - Page loads at localhost:5000
+# - API button returns JSON data
+# - Map button loads Cesium visualization
+# - All UI elements are functional
+```
+
+**When Puppeteer tests are required:**
+- After modifying API endpoints or routes
+- After changing UI components or templates  
+- After updating service configuration
+- After Docker container changes
+- Before merging any PR
+- When debugging system integration issues
 
 ## Key Algorithms
 
