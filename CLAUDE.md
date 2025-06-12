@@ -169,14 +169,21 @@ The Puppeteer test suite validates:
 
 **How to run:**
 ```bash
-# 1. Verify all services are running
+# 1. Start test environment (choose based on your setup)
+# For local development (with full retina monorepo):
+docker compose -f tests/docker-compose.test.yml up -d
+
+# For CI or standalone 3lips repo:
+docker compose -f tests/docker-compose.ci.yml up -d
+
+# 2. Verify all services are running
 ./tests/verify-services.sh
 
-# 2. Use Claude Code with Puppeteer MCP to run tests:
+# 3. Use Claude Code with Puppeteer MCP to run tests:
 # Load tests/smoke-test.js for quick validation, or
 # Use tests/integration/ directory for comprehensive testing
 
-# 3. Validate core functionality:
+# 4. Validate core functionality:
 # - Page loads at localhost:5000
 # - API button returns JSON data
 # - Map button loads Cesium visualization
