@@ -25,10 +25,8 @@ services:
       - MAP_CENTER_HEIGHT=40000
       - TAR1090_URL=mock-radar:8003
     depends_on:
-      event:
-        condition: service_started
-      mock-radar:
-        condition: service_healthy
+      - event
+      - mock-radar
 
   event:
     build:
@@ -71,9 +69,3 @@ services:
     volumes:
       - ./mocks/nginx.conf:/etc/nginx/nginx.conf:ro
     command: ["nginx", "-g", "daemon off;"]
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8001"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 10s

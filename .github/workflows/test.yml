@@ -49,13 +49,26 @@ jobs:
         run: |
           cd tests
           docker compose -f docker-compose.ci.yml up -d
-          # Wait for services to be ready
-          sleep 30
+          # Wait for services to be ready (longer wait for nginx and all services)
+          sleep 45
 
       - name: Verify services are running
         run: |
           chmod +x tests/verify-services.sh
           ./tests/verify-services.sh
+          
+          # Also verify mock services are responding
+          echo "🔍 Checking mock services..."
+          for port in 8001 8002 8003; do
+            if curl -s -f http://localhost:$port > /dev/null; then
+              echo "✅ Mock service on port $port is responding"
+            else
+              echo "❌ Mock service on port $port is not responding"
+              # Show what's actually running
+              docker ps
+              exit 1
+            fi
+          done
 
       - name: Run Puppeteer smoke test
         run: |
