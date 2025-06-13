@@ -1,6 +1,13 @@
 import os
 import sys
 import pytest
+from unittest.mock import Mock
+
+# Mock all RETINASolver dependencies before importing
+sys.modules['detection_triple'] = Mock()
+sys.modules['initial_guess_3det'] = Mock()
+sys.modules['lm_solver_3det'] = Mock()
+sys.modules['geometry'] = Mock()
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../../event"))
 
