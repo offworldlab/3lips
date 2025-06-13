@@ -14,7 +14,7 @@ from algorithm.geometry.Geometry import Geometry
 from algorithm.localisation.EllipseParametric import EllipseParametric
 from algorithm.localisation.EllipsoidParametric import EllipsoidParametric
 from algorithm.localisation.SphericalIntersection import SphericalIntersection
-from algorithm.localisation.TelemetrySolverLocalisation import TelemetrySolverLocalisation
+from algorithm.localisation.RETINASolverLocalisation import RETINASolverLocalisation
 from algorithm.track.Tracker import Tracker
 from algorithm.truth.AdsbTruth import AdsbTruth
 from data.Ellipsoid import Ellipsoid
@@ -107,7 +107,7 @@ ellipsoidParametricMin = EllipsoidParametric(
     thresholdEllipsoid,
 )
 sphericalIntersection = SphericalIntersection()
-telemetrySolver = TelemetrySolverLocalisation()
+retinaSolver = RETINASolverLocalisation()
 adsbTruth = AdsbTruth(tDeleteAdsb)
 saveFile = "/app/save/" + str(int(time.time())) + ".ndjson"
 
@@ -239,8 +239,8 @@ async def event():
             localisation_algorithm = ellipsoidParametricMin
         elif localisation_id == "spherical-intersection":
             localisation_algorithm = sphericalIntersection
-        elif localisation_id == "telemetry-solver":
-            localisation_algorithm = telemetrySolver
+        elif localisation_id == "retina-solver":
+            localisation_algorithm = retinaSolver
         else:
             print(f"Error: Localisation algorithm '{localisation_id}' invalid for item {item_config.get('hash')}.")
             error_output = item_config.copy()

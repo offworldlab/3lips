@@ -1,19 +1,19 @@
 import sys
 import os
-sys.path.append('/app/TelemetrySolver')
+sys.path.append('/app/RETINAsolver')
 
 from detection_triple import DetectionTriple, Detection
 from initial_guess_3det import get_initial_guess
 from lm_solver_3det import solve_position_velocity_3d
 
-class TelemetrySolverLocalisation:
-    """TelemetrySolver integration into 3lips localization pipeline."""
+class RETINASolverLocalisation:
+    """RETINASolver integration into 3lips localization pipeline."""
     
     def __init__(self):
         pass
         
     def process(self, assoc_detections, radar_data):
-        """Process detections using TelemetrySolver.
+        """Process detections using RETINASolver.
         
         Args:
             assoc_detections (dict): Associated detections by target ID
@@ -60,11 +60,11 @@ class TelemetrySolverLocalisation:
                                 result["alt"]
                             ]]
                         }
-                        print(f"TelemetrySolver result for {target}: {result}")
+                        print(f"RETINASolver result for {target}: {result}")
                     else:
-                        print(f"TelemetrySolver failed for {target}: {result}")
+                        print(f"RETINASolver failed for {target}: {result}")
                         
                 except Exception as e:
-                    print(f"TelemetrySolver error for {target}: {e}")
+                    print(f"RETINASolver error for {target}: {e}")
                     
         return output
