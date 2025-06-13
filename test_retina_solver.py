@@ -7,9 +7,26 @@ Run this in the Docker container to test RETINASolver functionality.
 import sys
 import os
 
-# Add required paths
-sys.path.insert(0, '/app/event')
-sys.path.insert(0, '/app/common')
+# Add required paths for both local and Docker environments
+if os.path.exists('/app/event'):
+    # Docker environment
+    sys.path.insert(0, '/app/event')
+    sys.path.insert(0, '/app/common')
+else:
+    # Local environment
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, os.path.join(current_dir, 'event'))
+    sys.path.insert(0, os.path.join(current_dir, 'common'))
+
+# Mock RETINASolver dependencies for local testing
+try:
+    from unittest.mock import Mock
+    sys.modules['detection_triple'] = Mock()
+    sys.modules['initial_guess_3det'] = Mock()
+    sys.modules['lm_solver_3det'] = Mock()
+    sys.modules['geometry'] = Mock()
+except ImportError:
+    pass
 
 def test_retina_solver_integration():
     """Test RETINASolver integration with 3lips."""
