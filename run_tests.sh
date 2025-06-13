@@ -3,4 +3,4 @@
 
 cd "$(dirname "$0")"
 export PYTHONPATH="${PYTHONPATH}:./event:./common"
-python3 -m pytest test/ -v "$@"
+python3 -m pytest tests/unit/ -v "$@"

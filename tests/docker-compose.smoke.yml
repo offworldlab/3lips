@@ -1,0 +1,56 @@
+version: '3.8'
+
+networks:
+  3lips-smoke:
+    driver: bridge
+
+services:
+
+  api:
+    build:
+      context: ..
+      dockerfile: ./api/Dockerfile
+    image: 3lips-api-smoke
+    ports:
+      - "8080:5000"
+    networks:
+      - 3lips-smoke
+    volumes:
+      - ../config:/app/config
+      - ../common:/app/common
+    container_name: 3lips-api-smoke
+    environment:
+      - RADAR_NAMES=smoke-radar
+      - RADAR_URLS=http://localhost:5000
+      - MAP_LATITUDE=37.7749
+      - MAP_LONGITUDE=-122.4194
+      - TAR1090_URL=localhost:5001
+    depends_on:
+      - event
+
+  event:
+    build:
+      context: ../event
+      dockerfile: Dockerfile
+    image: 3lips-event-smoke
+    networks:
+      - 3lips-smoke
+    volumes:
+      - ../config:/app/config
+      - ../common:/app/common
+      - ../save:/app/save
+    container_name: 3lips-event-smoke
+    environment:
+      - RADAR_NAMES=smoke-radar
+      - RADAR_URLS=http://localhost:5000
+
+  cesium-apache:
+    build:
+      context: ../cesium
+      dockerfile: Dockerfile
+    image: cesium-apache-smoke
+    ports:
+      - "8081:8080"
+    networks:
+      - 3lips-smoke
+    container_name: 3lips-cesium-smoke

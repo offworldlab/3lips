@@ -1,0 +1,71 @@
+networks:
+  3lips-ci:
+    driver: bridge
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: ./api/Dockerfile
+    pull_policy: build
+    ports:
+      - "5000:5000"
+    networks:
+      - 3lips-ci
+    volumes:
+      - ../config:/app/config
+      - ../common:/app/common
+    container_name: 3lips-api-ci
+    environment:
+      - RADAR_NAMES=mock-radar1,mock-radar2
+      - RADAR_URLS=http://mock-radar:8001,http://mock-radar:8002
+      - MAP_LATITUDE=37.7749
+      - MAP_LONGITUDE=-122.4194
+      - MAP_CENTER_WIDTH=50000
+      - MAP_CENTER_HEIGHT=40000
+      - TAR1090_URL=mock-radar:8003
+    depends_on:
+      - event
+      - mock-radar
+
+  event:
+    build:
+      context: ../event
+      dockerfile: Dockerfile
+    pull_policy: build
+    networks:
+      - 3lips-ci
+    volumes:
+      - ../config:/app/config
+      - ../common:/app/common
+      - ../save:/app/save
+    container_name: 3lips-event-ci
+    environment:
+      - RADAR_NAMES=mock-radar1,mock-radar2
+      - RADAR_URLS=http://mock-radar:8001,http://mock-radar:8002
+      - TAR1090_URL=mock-radar:8003
+
+  cesium-apache:
+    build:
+      context: ../cesium
+      dockerfile: Dockerfile
+    pull_policy: build
+    ports:
+      - "8080:8080"
+    networks:
+      - 3lips-ci
+    container_name: 3lips-cesium-ci
+
+  # Mock service to replace external dependencies
+  mock-radar:
+    image: nginx:alpine
+    ports:
+      - "8001:8001"
+      - "8002:8002" 
+      - "8003:8003"
+    networks:
+      - 3lips-ci
+    container_name: mock-radar-ci
+    volumes:
+      - ./mocks/nginx.conf:/etc/nginx/nginx.conf:ro
+    command: ["nginx", "-g", "daemon off;"]
