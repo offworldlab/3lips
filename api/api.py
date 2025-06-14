@@ -70,6 +70,7 @@ localisations = [
     {"name": "Ellipsoid Parametric (Mean)", "id": "ellipsoid-parametric-mean"},
     {"name": "Ellipsoid Parametric (Min)", "id": "ellipsoid-parametric-min"},
     {"name": "Spherical Intersection", "id": "spherical-intersection"},
+    {"name": "RETINA Solver", "id": "retina-solver"},
 ]
 
 adsbs = [
