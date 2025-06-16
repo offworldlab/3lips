@@ -198,6 +198,45 @@ docker compose -f tests/docker-compose.ci.yml up -d
 - Before merging any PR
 - When debugging system integration issues
 
+## GitHub Pull Request Code Reviews
+
+When Claude is mentioned in GitHub PR comments, it can perform automated code reviews and make requested modifications.
+
+### How to Request Code Reviews
+
+1. **In PR Comments**: Mention `@claude` followed by your specific request
+   ```
+   @claude please review this PR for security issues and performance problems
+   @claude fix the type errors in the authentication module
+   @claude add unit tests for the new validation functions
+   ```
+
+2. **Review Process**: Claude will:
+   - Analyze the PR changes and relevant codebase context
+   - Provide detailed feedback on code quality, security, and best practices
+   - Reference specific files and line numbers in review comments
+   - If requested, implement fixes and commit them to the PR branch
+
+3. **Response Format**: Reviews include:
+   - **Security Analysis**: Potential vulnerabilities and security best practices
+   - **Code Quality**: Readability, maintainability, and performance issues
+   - **Best Practices**: Framework-specific recommendations and patterns
+   - **Specific Recommendations**: Actionable suggestions with code examples
+
+### Best Practices for Claude Reviews
+
+- **Be Specific**: Request specific types of analysis (security, performance, testing)
+- **Provide Context**: Mention specific files or functions if relevant
+- **Request Changes**: Ask for specific fixes or improvements when needed
+- **Follow Up**: Claude can iterate on feedback and make additional changes
+
+### Integration with Development Workflow
+
+- Claude reviews follow the same standards as the Issue Development Workflow
+- All code modifications include proper testing and pre-commit validation
+- Changes are committed with clear attribution: "Claude: [description]"
+- Reviews complement but don't replace human code review
+
 ## Key Algorithms
 
 - **Association**: Delay-Doppler matching of radar detections to ADS-B truth
