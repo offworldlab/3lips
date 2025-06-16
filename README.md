@@ -25,6 +25,37 @@ cp .env.example .env  # Create and edit your .env file
 sudo docker compose up -d —build
 ```
 
+### Testing
+
+#### Unit Tests
+```bash
+# Run tests locally
+cd 3lips
+./run_tests.sh
+
+# Run tests in container
+docker exec -it 3lips-event python -m pytest test/
+```
+
+#### Integration Tests
+The system includes comprehensive integration tests for RETINASolver functionality:
+
+```bash
+# Start full test environment with synthetic data
+docker compose -f tests/docker-compose.retina.yml up -d
+
+# Verify all services are running
+./tests/verify-retina-services.sh
+
+# Run integration tests using Claude Code with Puppeteer MCP
+# Load and run: tests/retina-solver-test-suite.js
+```
+
+Test coverage includes:
+- **UI Integration**: RETINASolver dropdown selection and form submission
+- **Pipeline Integration**: Data flow from synthetic ADS-B through RETINASolver
+- **End-to-End**: Complete aircraft tracking and visualization
+
 ~~The API front-end is available at [http://localhost:49156](http://localhost:49156).~~
 
 ### Environment Variables
@@ -64,6 +95,8 @@ The target localisation uses 1 of the following algorithms:
 - **Ellipsoid parametric** samples an ellipsoid (3D). Find intersections between 3 or more ellipsoids such that the distance to each point is under some threshold.
 
 - **Spherical intersection** a closed form solution which applies when a common receiver or transmitter are used. As described in [Two Methods for Target Localization in Multistatic Passive Radar](https://ieeexplore.ieee.org/document/6129656).
+
+- **RETINASolver** uses Levenberg-Marquardt optimization for TDOA/FDOA localization. Generates initial position guesses and applies least squares optimization to solve target positions from bistatic range measurements.
 
 The system architecture is as follows:
 
