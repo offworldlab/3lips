@@ -41,7 +41,7 @@ services:
     environment:
       - FLASK_ENV=development
       - FLASK_DEBUG=1
-      - LOCALISATION_ALGORITHM=retina-solver  # Use RETINASolver!
+      - LOCALISATION_ALGORITHM=${LOCALISATION_ALGORITHM:-retina-solver}
       - ADSB_URL=http://synthetic-adsb-test:5001
     depends_on:
       - event
@@ -54,7 +54,7 @@ services:
       service: event
     environment:
       - TRACKER_VERBOSE=true
-      - LOCALISATION_ALGORITHM=retina-solver  # Use RETINASolver!
+      - LOCALISATION_ALGORITHM=${LOCALISATION_ALGORITHM:-retina-solver}
       - ADSB_URL=http://synthetic-adsb-test:5001
       - SYNTHETIC_RADAR_URLS=http://synthetic-adsb-test:5001/radar1,http://synthetic-adsb-test:5001/radar2,http://synthetic-adsb-test:5001/radar3
     depends_on:

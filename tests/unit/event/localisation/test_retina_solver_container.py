@@ -6,7 +6,6 @@ import os
 import sys
 import pytest
 
-# Add the event directory to Python path
 sys.path.insert(0, '/app/event')
 sys.path.insert(0, '/app/common')
 
@@ -24,7 +23,6 @@ class TestRETINASolverContainer:
     def setup_method(self):
         self.solver = RETINASolverLocalisation()
         
-        # Realistic radar configuration for Adelaide area
         self.radar_config = {
             "adelaideHills": {
                 "config": {
@@ -62,7 +60,7 @@ class TestRETINASolverContainer:
                 {
                     "radar": "adelaideHills",
                     "timestamp": 1641024000,
-                    "delay": 50.0,  # 50km bistatic range
+                    "delay": 50.0,
                     "doppler": 100.0
                 },
                 {
@@ -80,36 +78,28 @@ class TestRETINASolverContainer:
             ]
         }
         
-        # Process detections
         result = self.solver.process(detections, self.radar_config)
         
-        # Validate results
-        # Note: We can't predict exact coordinates since it depends on RETINASolver's
-        # algorithm behavior, but we can validate the output structure
-        if result:  # RETINASolver succeeded
+        if result:
             assert isinstance(result, dict)
             if "test_aircraft" in result:
                 assert "points" in result["test_aircraft"]
                 assert isinstance(result["test_aircraft"]["points"], list)
                 assert len(result["test_aircraft"]["points"]) > 0
                 
-                # Validate coordinate structure
                 lat, lon, alt = result["test_aircraft"]["points"][0]
                 assert isinstance(lat, (int, float))
                 assert isinstance(lon, (int, float))
                 assert isinstance(alt, (int, float))
                 
-                # Basic sanity check on coordinates (Adelaide area)
                 assert -36.0 < lat < -34.0
                 assert 138.0 < lon < 140.0
-                assert alt > -1000  # Reasonable altitude range
+                assert alt > -1000
         else:
-            # RETINASolver couldn't solve - this is also a valid outcome
             print("RETINASolver couldn't solve with given detection data")
     
     def test_error_handling(self):
         """Test that solver handles various error conditions gracefully."""
-        # Test with insufficient detections
         insufficient_detections = {
             "target": [
                 {
@@ -124,7 +114,6 @@ class TestRETINASolverContainer:
         result = self.solver.process(insufficient_detections, self.radar_config)
         assert result == {}
         
-        # Test with missing radar config
         detections_missing_radar = {
             "target": [
                 {
@@ -198,21 +187,16 @@ class TestRETINASolverContainer:
         
         result = self.solver.process(multi_target_detections, self.radar_config)
         
-        # Validate that solver processes multiple targets
-        # Results depend on whether RETINASolver can solve both targets
         assert isinstance(result, dict)
-        # Could be 0, 1, or 2 targets solved depending on data validity
         assert len(result) <= 2
     
     def test_coordinate_conversion(self):
         """Test that coordinate conversion logic works correctly."""
-        # Test the frequency conversion (Hz to MHz)
         freq_hz = 98000000
         expected_freq_mhz = 98.0
         actual_freq_mhz = freq_hz / 1e6
         assert abs(actual_freq_mhz - expected_freq_mhz) < 0.001
         
-        # Test basic coordinate validation
         test_coords = {
             "latitude": -34.9286,
             "longitude": 138.5999
@@ -248,7 +232,6 @@ class TestRETINASolverContainer:
         
         result = self.solver.process(detections, self.radar_config)
         
-        # Validate output structure matches 3lips localization format
         if result:
             for target_id, target_data in result.items():
                 assert isinstance(target_data, dict)

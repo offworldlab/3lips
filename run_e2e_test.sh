@@ -12,10 +12,12 @@ echo "=========================================================="
 echo "📋 Checking prerequisites..."
 
 # Check if synthetic-adsb exists
-if [ ! -d "../synthetic-adsb" ]; then
-    echo "❌ synthetic-adsb directory not found at ../synthetic-adsb"
-    echo "   Please ensure you're running from the 3lips-telemetry-solver directory"
-    echo "   and that synthetic-adsb exists in the parent retina directory"
+SYNTHETIC_ADSB_DIR=${SYNTHETIC_ADSB_DIR:-"../synthetic-adsb"}
+
+if [ ! -d "$SYNTHETIC_ADSB_DIR" ]; then
+    echo "❌ synthetic-adsb directory not found at $SYNTHETIC_ADSB_DIR"
+    echo "   Set SYNTHETIC_ADSB_DIR environment variable or ensure synthetic-adsb"
+    echo "   exists in the expected location"
     exit 1
 fi
 

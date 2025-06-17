@@ -1,6 +1,9 @@
 import sys
 import os
-sys.path.append('/app/RETINAsolver')
+
+retina_solver_path = os.environ.get('RETINA_SOLVER_PATH', '/app/RETINAsolver')
+if retina_solver_path not in sys.path:
+    sys.path.append(retina_solver_path)
 
 from detection_triple import DetectionTriple, Detection
 from initial_guess_3det import get_initial_guess
@@ -27,29 +30,12 @@ class RETINASolverLocalisation:
         for target in assoc_detections:
             if len(assoc_detections[target]) >= 3:
                 try:
-                    # Convert to Detection objects
                     detections = []
                     for radar in assoc_detections[target][:3]:
-                        config = radar_data[radar["radar"]]["config"]
-                        detection_data = {
-                            "sensor_lat": config["location"]["rx"]["latitude"],
-                            "sensor_lon": config["location"]["rx"]["longitude"],
-                            "ioo_lat": config["location"]["tx"]["latitude"],
-                            "ioo_lon": config["location"]["tx"]["longitude"],
-                            "freq_mhz": config["frequency"] / 1e6,
-                            "timestamp": radar["timestamp"],
-                            "bistatic_range_km": radar["delay"],
-                            "doppler_hz": radar["doppler"]
-                        }
-                        detections.append(Detection(**detection_data))
+                        detections.append(self._create_detection(radar, radar_data))
                     
-                    # Create DetectionTriple
                     triple = DetectionTriple(detections[0], detections[1], detections[2])
-                    
-                    # Generate initial guess
                     initial_guess = get_initial_guess(triple)
-                    
-                    # Solve using LM optimizer
                     result = solve_position_velocity_3d(triple, initial_guess)
                     
                     if result and "error" not in result:
@@ -60,11 +46,18 @@ class RETINASolverLocalisation:
                                 result["alt"]
                             ]]
                         }
-                        print(f"RETINASolver result for {target}: {result}")
-                    else:
-                        print(f"RETINASolver failed for {target}: {result}")
-                        
-                except Exception as e:
-                    print(f"RETINASolver error for {target}: {e}")
                     
         return output
+    
+    def _create_detection(self, radar, radar_data):
+        config = radar_data[radar["radar"]]["config"]
+        return Detection(
+            sensor_lat=config["location"]["rx"]["latitude"],
+            sensor_lon=config["location"]["rx"]["longitude"],
+            ioo_lat=config["location"]["tx"]["latitude"],
+            ioo_lon=config["location"]["tx"]["longitude"],
+            freq_mhz=config["frequency"] / 1e6,
+            timestamp=radar["timestamp"],
+            bistatic_range_km=radar["delay"],
+            doppler_hz=radar["doppler"]
+        )
