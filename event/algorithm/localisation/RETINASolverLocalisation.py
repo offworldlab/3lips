@@ -46,6 +46,8 @@ class RETINASolverLocalisation:
                                 result["alt"]
                             ]]
                         }
+                except Exception:
+                    pass
                     
         return output
     
