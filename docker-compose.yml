@@ -15,10 +15,7 @@ services:
       context: .
       dockerfile: ./api/Dockerfile
     image: 3lips-api
-    ports:
-      - "5000:5000"
-    networks:
-      - 3lips
+    network_mode: host
     volumes:
       - ./config:/app/config
       - ./common:/app/common
@@ -36,9 +33,7 @@ services:
       context: ./event
       dockerfile: Dockerfile
     image: 3lips-event
-    networks:
-      - 3lips
-      - retina-network
+    network_mode: host
     volumes:
       - ./config:/app/config
       - ./common:/app/common
@@ -56,10 +51,7 @@ services:
       context: ./cesium
       dockerfile: Dockerfile
     image: cesium-apache
-    ports:
-      - "8080:8080"
-    networks:
-      - 3lips
+    network_mode: host
     container_name: 3lips-cesium
     env_file:
       - .env

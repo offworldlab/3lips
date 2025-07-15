@@ -2,6 +2,7 @@ from enum import Enum, auto
 
 import numpy as np
 from stonesoup.types.track import Track as StoneSoupTrack
+from ..geometry.Geometry import Geometry
 
 
 # Define track status as an Enum
@@ -14,6 +15,18 @@ class TrackStatus(Enum):
 
 class Track(StoneSoupTrack):
     """Extension of Stone-Soup's Track to add custom fields and logic for 3lips."""
+    
+    # Class-level reference point for ENU to LLA conversion
+    ref_lat = -34.9286  # Adelaide reference latitude
+    ref_lon = 138.5999  # Adelaide reference longitude  
+    ref_alt = 0.0       # Reference altitude
+    
+    @classmethod
+    def set_reference_point(cls, lat, lon, alt):
+        """Set the reference point for ENU to LLA conversion."""
+        cls.ref_lat = lat
+        cls.ref_lon = lon
+        cls.ref_alt = alt
 
     def __init__(
         self,
@@ -160,22 +173,39 @@ class Track(StoneSoupTrack):
 
     def to_dict(self):
         """Returns a dictionary representation of the track, suitable for JSON serialization."""
-        # Get the most recent state vector and flatten it for API compatibility
-        current_state = None
+        # Get the most recent state vector and convert ENU to LLA for frontend
+        current_state_lla = None
         if self.states:
             state_vector = self.states[-1].state_vector
             # Flatten nested arrays to a simple list
             if hasattr(state_vector, 'flatten'):
-                current_state = state_vector.flatten().tolist()
+                state_enu = state_vector.flatten()
             else:
-                current_state = state_vector.tolist()
+                state_enu = np.array(state_vector)
+            
+            if len(state_enu) >= 3:
+                # Convert ENU position to LLA for frontend
+                east, north, up = state_enu[0], state_enu[1], state_enu[2]
+                lat, lon, alt = Geometry.enu2lla(
+                    east, north, up,
+                    self.ref_lat, self.ref_lon, self.ref_alt
+                )
+                
+                # Create LLA state vector (position + velocity in LLA frame)
+                if len(state_enu) >= 6:
+                    # For velocity, we can keep ENU values as they represent rates
+                    current_state_lla = [lat, lon, alt, state_enu[3], state_enu[4], state_enu[5]]
+                else:
+                    current_state_lla = [lat, lon, alt]
+            else:
+                current_state_lla = state_enu.tolist()
         
         return {
             "track_id": self.id,
             "status": self.status.name
             if hasattr(self.status, "name")
             else str(self.status),
-            "current_state_vector": current_state,
+            "current_state_vector": current_state_lla,
             "hits": self.hits,
             "misses": self.misses,
             "age_scans": self.age_scans,

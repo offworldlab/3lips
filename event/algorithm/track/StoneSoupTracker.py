@@ -12,8 +12,8 @@ from stonesoup.types.state import GaussianState
 from stonesoup.updater.kalman import KalmanUpdater
 
 from ..geometry.Geometry import Geometry
-from ..models.MeasurementModels import create_ecef_position_measurement_model
-from ..models.MotionModels import create_ecef_constant_velocity_model
+from ..models.MeasurementModels import create_enu_position_measurement_model
+from ..models.MotionModels import create_enu_constant_velocity_model
 from .Track import Track, TrackStatus
 
 
@@ -26,21 +26,24 @@ class StoneSoupTracker:
             "max_misses_to_delete": 5,
             "min_hits_to_confirm": 3,
             "gating_mahalanobis_threshold": 1000.0,  # Very permissive gating
-            "initial_pos_uncertainty_ecef_m": [1000.0, 1000.0, 1000.0],  # Higher uncertainty
-            "initial_vel_uncertainty_ecef_mps": [100.0, 100.0, 100.0],  # Moderate velocity uncertainty
+            "initial_pos_uncertainty_enu_m": [1000.0, 1000.0, 1000.0],  # Higher uncertainty
+            "initial_vel_uncertainty_enu_mps": [100.0, 100.0, 100.0],  # Moderate velocity uncertainty
             "dt_default_s": 1.0,
             "process_noise_coeff": 0.1,  # Lower process noise 
             "measurement_noise_coeff": 1000.0,  # Higher measurement noise
             "verbose": False,  # Disable debugging for normal operation
+            "ref_lat": -34.9286,  # Adelaide reference latitude
+            "ref_lon": 138.5999,  # Adelaide reference longitude  
+            "ref_alt": 0.0,       # Reference altitude
         }
         if config:
             self.config.update(config)
 
         # Initialize Stone Soup components
-        self.transition_model = create_ecef_constant_velocity_model(
+        self.transition_model = create_enu_constant_velocity_model(
             noise_diff_coeff=self.config["process_noise_coeff"]
         )
-        self.measurement_model = create_ecef_position_measurement_model(
+        self.measurement_model = create_enu_position_measurement_model(
             noise_covariance=np.diag([self.config["measurement_noise_coeff"]**2] * 3)
         )
         
@@ -88,10 +91,13 @@ class StoneSoupTracker:
         for det_data in localised_detections_lla:
             try:
                 lat, lon, alt = det_data["lla_position"]
-                x_ecef, y_ecef, z_ecef = Geometry.lla2ecef(lat, lon, alt)
+                east, north, up = Geometry.lla2enu(
+                    lat, lon, alt,
+                    self.config["ref_lat"], self.config["ref_lon"], self.config["ref_alt"]
+                )
                 
                 detection = Detection(
-                    state_vector=np.array([x_ecef, y_ecef, z_ecef]),
+                    state_vector=np.array([east, north, up]),
                     timestamp=datetime.fromtimestamp(timestamp_ms / 1000.0),
                     metadata=det_data
                 )
@@ -106,12 +112,12 @@ class StoneSoupTracker:
 
     def _initiate_new_track(self, detection, status=TrackStatus.TENTATIVE):
         """Create new track from unassociated detection."""
-        measurement_pos_ecef = detection.state_vector.flatten()
+        measurement_pos_enu = detection.state_vector.flatten()
         
-        initial_state_vector = np.concatenate([measurement_pos_ecef, np.zeros(3)])
+        initial_state_vector = np.concatenate([measurement_pos_enu, np.zeros(3)])
         
-        pos_uncertainty = np.array(self.config["initial_pos_uncertainty_ecef_m"])
-        vel_uncertainty = np.array(self.config["initial_vel_uncertainty_ecef_mps"])
+        pos_uncertainty = np.array(self.config["initial_pos_uncertainty_enu_m"])
+        vel_uncertainty = np.array(self.config["initial_vel_uncertainty_enu_mps"])
         
         initial_covariance = np.block([
             [np.diag(pos_uncertainty**2), np.zeros((3, 3))],
@@ -142,7 +148,7 @@ class StoneSoupTracker:
         
         if self.config["verbose"]:
             track_type = "ADS-B confirmed" if status == TrackStatus.CONFIRMED else "radar tentative"
-            print(f"Initiated new {track_type} track: {new_track.id} at ECEF {measurement_pos_ecef}")
+            print(f"Initiated new {track_type} track: {new_track.id} at ENU {measurement_pos_enu}")
         
         return new_track
 

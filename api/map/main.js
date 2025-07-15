@@ -153,7 +153,7 @@ if (cesiumCredit) {
  * @returns {Entity} The Cesium Entity representing the added point.
  */
  function addPoint(latitude, longitude, altitude, pointName, pointColor, pointSize, type, timestamp) {
-  // Convert latitude, longitude, altitude to Cartesian coordinates (ECEF)
+  // Convert latitude, longitude, altitude to Cartesian coordinates
   const position = Cesium.Cartesian3.fromDegrees(longitude, latitude, altitude);
 
   // Create a point entity

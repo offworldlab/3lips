@@ -58,23 +58,26 @@ tracker_config_params = {
     "gating_mahalanobis_threshold": float(
         os.environ.get("TRACKER_GATING_MAHALANOBIS_THRESHOLD", 11.345),
     ),
-    "initial_pos_uncertainty_ecef_m": [
+    "initial_pos_uncertainty_enu_m": [
         float(x)
         for x in os.environ.get(
-            "TRACKER_INITIAL_POS_UNCERTAINTY_ECEF_M",
+            "TRACKER_INITIAL_POS_UNCERTAINTY_ENU_M",
             "500.0,500.0,500.0",
         ).split(",")
     ],
-    "initial_vel_uncertainty_ecef_mps": [
+    "initial_vel_uncertainty_enu_mps": [
         float(x)
         for x in os.environ.get(
-            "TRACKER_INITIAL_VEL_UNCERTAINTY_ECEF_MPS",
+            "TRACKER_INITIAL_VEL_UNCERTAINTY_ENU_MPS",
             "100.0,100.0,100.0",
         ).split(",")
     ],
     "dt_default_s": float(os.environ.get("TRACKER_DT_DEFAULT_S", 1.0)),
     "process_noise_coeff": float(os.environ.get("TRACKER_PROCESS_NOISE_COEFF", 0.1)),
     "measurement_noise_coeff": float(os.environ.get("TRACKER_MEASUREMENT_NOISE_COEFF", 500.0)),
+    "ref_lat": float(os.environ.get("MAP_LATITUDE", -34.9286)),
+    "ref_lon": float(os.environ.get("MAP_LONGITUDE", 138.5999)),
+    "ref_alt": float(os.environ.get("MAP_ALTITUDE", 0.0)),
 }
 verbose_tracker = tracker_config_params["verbose"]
 
@@ -111,6 +114,14 @@ saveFile = "/app/save/" + str(int(time.time())) + ".ndjson"
 
 global_tracker = Tracker(config=tracker_config_params)
 
+# Set the reference point for ENU to LLA conversion in Track class
+from algorithm.track.Track import Track
+Track.set_reference_point(
+    tracker_config_params["ref_lat"], 
+    tracker_config_params["ref_lon"], 
+    tracker_config_params["ref_alt"]
+)
+
 
 async def event():
     global api, save, global_tracker
@@ -133,11 +144,7 @@ async def event():
 
     def translate_localhost_to_container(server):
         """Translate localhost URLs to container names for inter-container communication."""
-        if server == "localhost:5001":
-            return "synthetic-adsb:5001"
-        elif server.startswith("localhost:491"):
-            port = server.split(":")[1]
-            return f"synthetic-adsb:{port}"
+        # Disabled translation for host networking mode
         return server
 
     radar_names = []

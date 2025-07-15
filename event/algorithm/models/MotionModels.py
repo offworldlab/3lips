@@ -5,8 +5,8 @@ from stonesoup.models.transition.linear import (
 )
 
 
-def create_ecef_constant_velocity_model(noise_diff_coeff=0.1):
-    """Factory function to create ECEF constant velocity motion model.
+def create_enu_constant_velocity_model(noise_diff_coeff=0.1):
+    """Factory function to create ENU constant velocity motion model.
     
     Args:
         noise_diff_coeff: Noise diffusion coefficient (process noise intensity)
@@ -21,8 +21,8 @@ def create_ecef_constant_velocity_model(noise_diff_coeff=0.1):
     ])
 
 
-def create_ecef_constant_acceleration_model(noise_diff_coeff=0.01):
-    """Factory function to create ECEF constant acceleration motion model.
+def create_enu_constant_acceleration_model(noise_diff_coeff=0.01):
+    """Factory function to create ENU constant acceleration motion model.
     
     Args:
         noise_diff_coeff: Noise diffusion coefficient for acceleration
