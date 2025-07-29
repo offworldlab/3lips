@@ -59,17 +59,17 @@ tracker_config_params = {
     "gating_mahalanobis_threshold": float(
         os.environ.get("TRACKER_GATING_MAHALANOBIS_THRESHOLD", 11.345),
     ),
-    "initial_pos_uncertainty_ecef_m": [
+    "initial_pos_uncertainty_enu_m": [
         float(x)
         for x in os.environ.get(
-            "TRACKER_INITIAL_POS_UNCERTAINTY_ECEF_M",
+            "TRACKER_INITIAL_POS_UNCERTAINTY_ENU_M",
             "500.0,500.0,500.0",
         ).split(",")
     ],
-    "initial_vel_uncertainty_ecef_mps": [
+    "initial_vel_uncertainty_enu_mps": [
         float(x)
         for x in os.environ.get(
-            "TRACKER_INITIAL_VEL_UNCERTAINTY_ECEF_MPS",
+            "TRACKER_INITIAL_VEL_UNCERTAINTY_ENU_MPS",
             "100.0,100.0,100.0",
         ).split(",")
     ],
@@ -120,7 +120,7 @@ saveFile = "/app/save/" + str(int(time.time())) + ".ndjson"
 
 global_tracker = Tracker(config=tracker_config_params)
 
-# ECEF tracking system - no reference point needed
+# ENU tracking system - uses MAP_LATITUDE/MAP_LONGITUDE as reference point
 
 
 async def event():
