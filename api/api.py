@@ -93,7 +93,7 @@ async def callback_message_received(msg):
 
 
 # init messaging
-message_api_request = Message("3lips-event", 6969)
+message_api_request = Message("127.0.0.1", 6969)
 
 
 @app.route("/")
@@ -164,11 +164,17 @@ def api():
         return "Invalid ADSB"
     # send to event handler
     try:
+        print(f"Sending API request: {api}", flush=True)
         reply_chunks = message_api_request.send_message(api)
+        print("Got reply_chunks generator", flush=True)
         reply = "".join(reply_chunks)
-        print(reply, flush=True)
+        print(f"Final reply: {reply}", flush=True)
         return reply
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Exception occurred: {e}", flush=True)
+        print(f"Traceback: {error_trace}", flush=True)
         reply = "Exception: " + str(e)
         return jsonify(error=reply), 500
 
@@ -188,7 +194,7 @@ def serve_cesium_index():
 
 @app.route("/cesium/<path:file>")
 def serve_cesium_content(file):
-    apache_url = "http://3lips-cesium:8080/" + file
+    apache_url = "http://127.0.0.1:8080/" + file
     try:
         response = requests.get(apache_url, timeout=10)
         if response.status_code == 200:

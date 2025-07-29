@@ -21,11 +21,7 @@ def is_localhost(server):
 
 def translate_localhost_to_container(server):
     """Translate localhost URLs to container names for inter-container communication."""
-    if server == "localhost:5001":
-        return "synthetic-adsb:5001"
-    elif server.startswith("localhost:491"):  # localhost:49158, 49159, 49160
-        port = server.split(":")[1]
-        return f"synthetic-adsb:{port}"
+    # Disabled translation for host networking mode
     return server
 
 

@@ -179,29 +179,27 @@ function processTrack(track) {
   // Log track state to console
   logTrackState(track);
 
-  // Convert ECEF to LLA for visualization - with safe number conversion
+  // Current state vector is now in LLA format from backend - with safe number conversion
   const safeFloat = (value) => {
     if (value === null || value === undefined) return 0;
     const num = typeof value === 'string' ? parseFloat(value) : Number(value);
     return isNaN(num) ? 0 : num;
   };
 
-  const ecefPosition = {
-    x: safeFloat(currentState[0]),
-    y: safeFloat(currentState[1]), 
-    z: safeFloat(currentState[2])
+  const llaPosition = {
+    latitude: safeFloat(currentState[0]),
+    longitude: safeFloat(currentState[1]), 
+    altitude: safeFloat(currentState[2])
   };
   
-  // Validate ECEF values
-  if (ecefPosition.x === 0 && ecefPosition.y === 0 && ecefPosition.z === 0) {
-    console.warn(`[TRACKS] Track ${trackId} has zero ECEF position, skipping visualization`);
+  // Validate LLA values
+  if (Math.abs(llaPosition.latitude) > 90 || Math.abs(llaPosition.longitude) > 180) {
+    console.warn(`[TRACKS] Track ${trackId} has invalid LLA position, skipping visualization:`, llaPosition);
     return;
   }
   
-  const llaPosition = ecefToLla(ecefPosition.x, ecefPosition.y, ecefPosition.z);
-  
-  if (!llaPosition) {
-    console.warn(`[TRACKS] Failed to convert ECEF to LLA for track ${trackId}:`, ecefPosition);
+  if (llaPosition.latitude === 0 && llaPosition.longitude === 0 && llaPosition.altitude === 0) {
+    console.warn(`[TRACKS] Track ${trackId} has zero LLA position, skipping visualization`);
     return;
   }
 
@@ -242,12 +240,42 @@ function updateTrackEntity(trackId, llaPosition, label, style, track) {
     llaPosition.altitude
   );
 
-  // Remove existing entity if it exists
+  // Update existing entity if it exists
   if (trackEntities[trackId]) {
-    viewer.entities.remove(trackEntities[trackId]);
+    const existingEntity = trackEntities[trackId];
+    
+    // Check if position has actually changed to avoid unnecessary updates
+    const currentPos = existingEntity.position.getValue(Cesium.JulianDate.now());
+    const distance = Cesium.Cartesian3.distance(currentPos, position);
+    const positionChanged = distance > 1.0; // Only update if moved more than 1 meter
+    
+    if (positionChanged) {
+      existingEntity.position = position;
+    }
+    
+    // Update label text with current stats
+    const statusIcon = track.adsb_info ? '✈️' : 
+      (track.status === 'CONFIRMED' ? '🎯' : 
+       track.status === 'COASTING' ? '⚡' : '❓');
+    
+    const labelText = `${statusIcon} ${label}\nHits: ${track.hits}, Misses: ${track.misses}\nAge: ${track.age_scans}`;
+    existingEntity.label.text = labelText;
+    
+    // Update point color and size if style changed
+    existingEntity.point.color = Cesium.Color.fromCssColorString(style.color);
+    existingEntity.point.pixelSize = style.pointSize;
+    
+    // Update properties
+    existingEntity.properties.timestamp = Date.now();
+    existingEntity.properties.track_status = track.status;
+    existingEntity.properties.track_hits = track.hits;
+    existingEntity.properties.track_misses = track.misses;
+    existingEntity.properties.adsb_info = track.adsb_info;
+    
+    return;
   }
 
-  // Create track entity with enhanced label
+  // Create track entity only if it doesn't exist
   const statusIcon = track.adsb_info ? '✈️' : 
     (track.status === 'CONFIRMED' ? '🎯' : 
      track.status === 'COASTING' ? '⚡' : '❓');
@@ -415,30 +443,10 @@ function logTrackState(track) {
     'Radar-only';
   
   console.log(`[TRACK STATE ${timestamp}] ID: ${track.track_id}, Status: ${track.status}, ` +
-              `Pos(ECEF): ${position}, Vel(ECEF): ${velocity}, ` +
+              `Pos(LLA): ${position}, Vel(ENU): ${velocity}, ` +
               `Hits: ${track.hits}, Misses: ${track.misses}, Age: ${track.age_scans}, ${adsbInfo}`);
 }
 
-/**
- * Convert ECEF coordinates to LLA (simplified conversion)
- * Note: This is a basic implementation. For production use, consider a more robust library.
- */
-function ecefToLla(x, y, z) {
-  try {
-    // Use Cesium's built-in conversion
-    const cartesian = new Cesium.Cartesian3(x, y, z);
-    const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
-    
-    return {
-      latitude: Cesium.Math.toDegrees(cartographic.latitude),
-      longitude: Cesium.Math.toDegrees(cartographic.longitude),
-      altitude: cartographic.height
-    };
-  } catch (error) {
-    console.error('[TRACKS] Error converting ECEF to LLA:', error);
-    return null;
-  }
-}
 
 // Export function for external use
 window.event_tracks = event_tracks; 
