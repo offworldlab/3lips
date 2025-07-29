@@ -63,6 +63,11 @@ class Track(StoneSoupTrack):
         self.state_vector = None
         self.covariance_matrix = None
         self.timestamp_update_ms = None
+        
+        # Initialize ENU reference point (will be set by tracker)
+        self.ref_lat = None
+        self.ref_lon = None
+        self.ref_alt = None
 
         if adsb_info:
             print(
@@ -154,45 +159,53 @@ class Track(StoneSoupTrack):
 
     def get_position_lla(self):
         """Returns the track's current position in LLA (Latitude, Longitude, Altitude).
-        Assumes the state vector stores position in a way that can be converted or is already LLA.
+        Converts from internal ENU state to LLA using reference point.
         """
         if self.states and len(self.states[-1].state_vector) >= 3:
             sv = self.states[-1].state_vector
-            return (sv[0], sv[1], sv[2])
+            # Convert from ENU to LLA if reference point is available
+            if self.ref_lat is not None:
+                east, north, up = sv[0], sv[1], sv[2]
+                lat, lon, alt = Geometry.enu2lla(east, north, up, self.ref_lat, self.ref_lon, self.ref_alt)
+                return (lat, lon, alt)
+            else:
+                # Fallback if no reference point (shouldn't happen)
+                return (sv[0], sv[1], sv[2])
         return None
 
     def to_dict(self):
         """Returns a dictionary representation of the track, suitable for JSON serialization."""
-        # Get the most recent state vector and convert ECEF to LLA for frontend
+        # Get the most recent state vector and convert ENU to LLA for frontend
         current_state_lla = None
         if self.states:
             state_vector = self.states[-1].state_vector
             # Flatten nested arrays to a simple list
             if hasattr(state_vector, "flatten"):
-                state_ecef = state_vector.flatten()
+                state_enu = state_vector.flatten()
             else:
-                state_ecef = np.array(state_vector)
+                state_enu = np.array(state_vector)
 
-            if len(state_ecef) >= 3:
-                # Convert ECEF position to LLA for frontend
-                x, y, z = state_ecef[0], state_ecef[1], state_ecef[2]
-                lat, lon, alt = Geometry.ecef2lla(x, y, z)
+            if len(state_enu) >= 3 and self.ref_lat is not None:
+                # Convert ENU position to LLA for frontend
+                east, north, up = state_enu[0], state_enu[1], state_enu[2]
+                lat, lon, alt = Geometry.enu2lla(east, north, up, self.ref_lat, self.ref_lon, self.ref_alt)
 
-                # Create LLA state vector (position + velocity in ECEF frame)
-                if len(state_ecef) >= 6:
-                    # For velocity, we keep ECEF values as they represent rates
+                # Create LLA state vector (position + velocity in ENU frame)
+                if len(state_enu) >= 6:
+                    # For velocity, we keep ENU values as they represent rates in local frame
                     current_state_lla = [
                         lat,
                         lon,
                         alt,
-                        state_ecef[3],
-                        state_ecef[4],
-                        state_ecef[5],
+                        state_enu[3],  # velocity east
+                        state_enu[4],  # velocity north
+                        state_enu[5],  # velocity up
                     ]
                 else:
                     current_state_lla = [lat, lon, alt]
             else:
-                current_state_lla = state_ecef.tolist()
+                # Fallback if no reference point (shouldn't happen)
+                current_state_lla = state_enu.tolist()
 
         return {
             "track_id": self.id,
