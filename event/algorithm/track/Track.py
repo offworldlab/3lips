@@ -2,6 +2,7 @@ from enum import Enum, auto
 
 import numpy as np
 from stonesoup.types.track import Track as StoneSoupTrack
+
 from ..geometry.Geometry import Geometry
 
 
@@ -15,18 +16,6 @@ class TrackStatus(Enum):
 
 class Track(StoneSoupTrack):
     """Extension of Stone-Soup's Track to add custom fields and logic for 3lips."""
-    
-    # Class-level reference point for ENU to LLA conversion
-    ref_lat = -34.9286  # Adelaide reference latitude
-    ref_lon = 138.5999  # Adelaide reference longitude  
-    ref_alt = 0.0       # Reference altitude
-    
-    @classmethod
-    def set_reference_point(cls, lat, lon, alt):
-        """Set the reference point for ENU to LLA conversion."""
-        cls.ref_lat = lat
-        cls.ref_lon = lon
-        cls.ref_alt = alt
 
     def __init__(
         self,
@@ -84,9 +73,10 @@ class Track(StoneSoupTrack):
 
     def update(self, detection, timestamp_ms, new_state, new_covariance):
         """Update the track's state, covariance, and history. Compatible with Tracker's update call."""
-        from stonesoup.types.state import State
         from datetime import datetime
-        
+
+        from stonesoup.types.state import State
+
         old_pos = self.state_vector[:3] if self.state_vector is not None else None
         new_pos = new_state[:3] if new_state is not None else None
 
@@ -98,16 +88,16 @@ class Track(StoneSoupTrack):
         self.state_vector = new_state
         self.covariance_matrix = new_covariance
         self.timestamp_update_ms = timestamp_ms
-        
+
         # Create a new State object and append to states list for to_dict() compatibility
         new_state_obj = State(
             state_vector=new_state,
-            timestamp=datetime.fromtimestamp(timestamp_ms / 1000.0)
+            timestamp=datetime.fromtimestamp(timestamp_ms / 1000.0),
         )
-        if hasattr(new_state_obj, 'covar'):
+        if hasattr(new_state_obj, "covar"):
             new_state_obj.covar = new_covariance
         self.append(new_state_obj)
-        
+
         # Update custom fields/history
         self.update_custom(detection)
 
@@ -173,33 +163,37 @@ class Track(StoneSoupTrack):
 
     def to_dict(self):
         """Returns a dictionary representation of the track, suitable for JSON serialization."""
-        # Get the most recent state vector and convert ENU to LLA for frontend
+        # Get the most recent state vector and convert ECEF to LLA for frontend
         current_state_lla = None
         if self.states:
             state_vector = self.states[-1].state_vector
             # Flatten nested arrays to a simple list
-            if hasattr(state_vector, 'flatten'):
-                state_enu = state_vector.flatten()
+            if hasattr(state_vector, "flatten"):
+                state_ecef = state_vector.flatten()
             else:
-                state_enu = np.array(state_vector)
-            
-            if len(state_enu) >= 3:
-                # Convert ENU position to LLA for frontend
-                east, north, up = state_enu[0], state_enu[1], state_enu[2]
-                lat, lon, alt = Geometry.enu2lla(
-                    east, north, up,
-                    self.ref_lat, self.ref_lon, self.ref_alt
-                )
-                
-                # Create LLA state vector (position + velocity in LLA frame)
-                if len(state_enu) >= 6:
-                    # For velocity, we can keep ENU values as they represent rates
-                    current_state_lla = [lat, lon, alt, state_enu[3], state_enu[4], state_enu[5]]
+                state_ecef = np.array(state_vector)
+
+            if len(state_ecef) >= 3:
+                # Convert ECEF position to LLA for frontend
+                x, y, z = state_ecef[0], state_ecef[1], state_ecef[2]
+                lat, lon, alt = Geometry.ecef2lla(x, y, z)
+
+                # Create LLA state vector (position + velocity in ECEF frame)
+                if len(state_ecef) >= 6:
+                    # For velocity, we keep ECEF values as they represent rates
+                    current_state_lla = [
+                        lat,
+                        lon,
+                        alt,
+                        state_ecef[3],
+                        state_ecef[4],
+                        state_ecef[5],
+                    ]
                 else:
                     current_state_lla = [lat, lon, alt]
             else:
-                current_state_lla = state_enu.tolist()
-        
+                current_state_lla = state_ecef.tolist()
+
         return {
             "track_id": self.id,
             "status": self.status.name

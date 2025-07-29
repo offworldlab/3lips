@@ -172,6 +172,7 @@ def api():
         return reply
     except Exception as e:
         import traceback
+
         error_trace = traceback.format_exc()
         print(f"Exception occurred: {e}", flush=True)
         print(f"Traceback: {error_trace}", flush=True)
