@@ -63,7 +63,7 @@ class Track(StoneSoupTrack):
         self.state_vector = None
         self.covariance_matrix = None
         self.timestamp_update_ms = None
-        
+
         # Initialize ENU reference point (will be set by tracker)
         self.ref_lat = None
         self.ref_lon = None
@@ -166,7 +166,9 @@ class Track(StoneSoupTrack):
             # Convert from ENU to LLA if reference point is available
             if self.ref_lat is not None:
                 east, north, up = sv[0], sv[1], sv[2]
-                lat, lon, alt = Geometry.enu2lla(east, north, up, self.ref_lat, self.ref_lon, self.ref_alt)
+                lat, lon, alt = Geometry.enu2lla(
+                    east, north, up, self.ref_lat, self.ref_lon, self.ref_alt
+                )
                 return (lat, lon, alt)
             else:
                 # Fallback if no reference point (shouldn't happen)
@@ -188,7 +190,9 @@ class Track(StoneSoupTrack):
             if len(state_enu) >= 3 and self.ref_lat is not None:
                 # Convert ENU position to LLA for frontend
                 east, north, up = state_enu[0], state_enu[1], state_enu[2]
-                lat, lon, alt = Geometry.enu2lla(east, north, up, self.ref_lat, self.ref_lon, self.ref_alt)
+                lat, lon, alt = Geometry.enu2lla(
+                    east, north, up, self.ref_lat, self.ref_lon, self.ref_alt
+                )
 
                 # Create LLA state vector (position + velocity in ENU frame)
                 if len(state_enu) >= 6:

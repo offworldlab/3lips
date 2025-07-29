@@ -96,7 +96,9 @@ class StoneSoupTracker:
 
         if self.config["verbose"]:
             print(f"StoneSoupTracker initialized with config: {self.config}")
-            print(f"ENU reference point: lat={self.ref_lat}, lon={self.ref_lon}, alt={self.ref_alt}")
+            print(
+                f"ENU reference point: lat={self.ref_lat}, lon={self.ref_lon}, alt={self.ref_alt}"
+            )
 
     def _convert_localised_detections_to_stone_soup_detections(
         self, localised_detections_lla, timestamp_ms
@@ -107,7 +109,9 @@ class StoneSoupTracker:
         for det_data in localised_detections_lla:
             try:
                 lat, lon, alt = det_data["lla_position"]
-                east, north, up = Geometry.lla2enu(lat, lon, alt, self.ref_lat, self.ref_lon, self.ref_alt)
+                east, north, up = Geometry.lla2enu(
+                    lat, lon, alt, self.ref_lat, self.ref_lon, self.ref_alt
+                )
 
                 detection = Detection(
                     state_vector=np.array([east, north, up]),

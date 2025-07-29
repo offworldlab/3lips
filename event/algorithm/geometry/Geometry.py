@@ -23,4 +23,4 @@ except ImportError as e:
     )
 
 # Make it available for 3lips components
-__all__ = ['Geometry']
+__all__ = ["Geometry"]
