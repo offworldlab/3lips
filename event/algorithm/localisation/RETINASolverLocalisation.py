@@ -14,7 +14,10 @@ class RETINASolverLocalisation:
     """RETINASolver integration into 3lips localization pipeline."""
 
     def __init__(self):
-        pass
+        self.max_iterations = int(os.environ.get("RETINA_SOLVER_MAX_ITERATIONS", "100"))
+        self.convergence_threshold = float(
+            os.environ.get("RETINA_SOLVER_CONVERGENCE_THRESHOLD", "1e-6")
+        )
 
     def process(self, assoc_detections, radar_data):
         """Process detections using RETINASolver.
@@ -39,7 +42,12 @@ class RETINASolverLocalisation:
                         detections[0], detections[1], detections[2]
                     )
                     initial_guess = get_initial_guess(triple)
-                    result = solve_position_velocity_3d(triple, initial_guess)
+                    result = solve_position_velocity_3d(
+                        triple,
+                        initial_guess,
+                        max_iterations=self.max_iterations,
+                        convergence_threshold=self.convergence_threshold,
+                    )
 
                     if result and "error" not in result:
                         output[target] = {

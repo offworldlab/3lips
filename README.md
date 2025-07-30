@@ -74,6 +74,9 @@ The following environment variables can be configured:
 #### Localisation Configuration
 - `ELLIPSE_N_SAMPLES`, `ELLIPSE_THRESHOLD`, `ELLIPSE_N_DISPLAY` - Ellipse sampling parameters
 - `ELLIPSOID_N_SAMPLES`, `ELLIPSOID_THRESHOLD`, `ELLIPSOID_N_DISPLAY` - Ellipsoid sampling parameters
+- `RETINA_SOLVER_MAX_ITERATIONS` - Maximum iterations for RETINASolver optimization (default: 100)
+- `RETINA_SOLVER_CONVERGENCE_THRESHOLD` - Convergence threshold for optimization (default: 1e-6)
+- `RETINA_SOLVER_PATH` - Path to RETINASolver module (default: /app/RETINAsolver)
 
 #### ADSB Configuration
 - `ADSB_T_DELETE` - Time to delete ADSB data
@@ -96,7 +99,11 @@ The target localisation uses 1 of the following algorithms:
 
 - **Spherical intersection** a closed form solution which applies when a common receiver or transmitter are used. As described in [Two Methods for Target Localization in Multistatic Passive Radar](https://ieeexplore.ieee.org/document/6129656).
 
-- **RETINASolver** uses Levenberg-Marquardt optimization for TDOA/FDOA localization. Generates initial position guesses and applies least squares optimization to solve target positions from bistatic range measurements.
+- **RETINA Solver** uses Levenberg-Marquardt optimization for TDOA/FDOA localization. This advanced algorithm:
+  - Generates intelligent initial position guesses based on detection geometry
+  - Applies least squares optimization to solve target positions from bistatic range and Doppler measurements
+  - Handles 3 or more radar detections for improved accuracy
+  - Provides robust error handling for non-converging cases
 
 The system architecture is as follows:
 
