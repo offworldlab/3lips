@@ -25,7 +25,9 @@ class TestRETINASolverLocalisation:
                         "rx": {"latitude": -34.9286, "longitude": 138.5999},
                         "tx": {"latitude": -34.9286, "longitude": 138.5999},
                     },
-                    "frequency": 98000000,
+                    "capture": {
+                        "fc": 98000000,
+                    },
                 }
             },
             "radar2": {
@@ -34,7 +36,9 @@ class TestRETINASolverLocalisation:
                         "rx": {"latitude": -34.9300, "longitude": 138.6000},
                         "tx": {"latitude": -34.9300, "longitude": 138.6000},
                     },
-                    "frequency": 98000000,
+                    "capture": {
+                        "fc": 98000000,
+                    },
                 }
             },
             "radar3": {
@@ -43,7 +47,9 @@ class TestRETINASolverLocalisation:
                         "rx": {"latitude": -34.9310, "longitude": 138.6010},
                         "tx": {"latitude": -34.9310, "longitude": 138.6010},
                     },
-                    "frequency": 98000000,
+                    "capture": {
+                        "fc": 98000000,
+                    },
                 }
             },
         }
