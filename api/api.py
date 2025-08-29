@@ -93,40 +93,11 @@ async def callback_message_received(msg):
 
 
 # init messaging
-event_host = os.environ.get("EVENT_HOST", "127.0.0.1")
-message_api_request = Message(event_host, 6969)
+message_api_request = Message("127.0.0.1", 6969)
 
 
 @app.route("/")
 def index():
-    # Configure tile servers with proper HTTPS
-    tile_servers = {
-        "esri": os.getenv(
-            "TILE_SERVER_ESRI",
-            "tile.openstreetmap.org/{z}/{x}/{y}.png",
-        ),
-        "mapbox_streets": os.getenv(
-            "TILE_SERVER_MAPBOX_STREETS",
-            "tile.openstreetmap.org/{z}/{x}/{y}.png",
-        ),
-        "mapbox_dark": os.getenv(
-            "TILE_SERVER_MAPBOX_DARK",
-            "tile.openstreetmap.org/{z}/{x}/{y}.png",
-        ),
-        "opentopomap": os.getenv(
-            "TILE_SERVER_OPENTOPOMAP",
-            "tile.openstreetmap.org/{z}/{x}/{y}.png",
-        ),
-        "esri_satellite": os.getenv(
-            "TILE_SERVER_ESRI_SATELLITE",
-            "server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        ),
-        "google_satellite": os.getenv(
-            "TILE_SERVER_GOOGLE_SATELLITE",
-            "mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-        ),
-    }
-    
     app_config = {
         "map": {
             "location": {
@@ -135,25 +106,33 @@ def index():
             },
             "center_width": int(os.getenv("MAP_CENTER_WIDTH", 50000)),
             "center_height": int(os.getenv("MAP_CENTER_HEIGHT", 40000)),
-            "tile_server": ensure_tile_server_https(tile_servers),
+            "tile_server": {
+                "esri": os.getenv(
+                    "TILE_SERVER_ESRI",
+                    "tile.datr.dev/data/esri-adelaide/",
+                ),
+                "mapbox_streets": os.getenv(
+                    "TILE_SERVER_MAPBOX_STREETS",
+                    "tile.datr.dev/data/mapbox-streets-v11/",
+                ),
+                "mapbox_dark": os.getenv(
+                    "TILE_SERVER_MAPBOX_DARK",
+                    "tile.datr.dev/data/mapbox-dark-v10/",
+                ),
+                "opentopomap": os.getenv(
+                    "TILE_SERVER_OPENTOPOMAP",
+                    "tile.datr.dev/data/opentopomap/",
+                ),
+            },
             "tar1090": os.getenv("TAR1090_URL", "localhost:5001"),
         },
     }
-    
-    # Translate container URLs to localhost URLs for browser
-    browser_servers = translate_container_to_browser_urls(servers)
-    browser_adsbs = []
-    for adsb in adsbs:
-        browser_adsb = adsb.copy()
-        browser_adsb["url"] = browser_adsb["url"].replace("synthetic-adsb:", "localhost:")
-        browser_adsbs.append(browser_adsb)
-    
     return render_template(
         "index.html",
-        servers=browser_servers,
+        servers=servers,
         associators=associators,
         localisations=localisations,
-        adsbs=browser_adsbs,
+        adsbs=adsbs,
         app_config=app_config,
         config_json=json.dumps(app_config),
     )
@@ -167,32 +146,6 @@ def serve_static(file):
     return send_from_directory(public_folder, file)
 
 
-def translate_browser_to_container_urls(url_list, url_type="server"):
-    """Translate localhost URLs from browser to container URLs for internal processing"""
-    translated = []
-    for url in url_list:
-        # Translate localhost URLs to container URLs
-        container_url = url.replace("localhost:", "synthetic-adsb:")
-        translated.append(container_url)
-    return translated
-
-def translate_container_to_browser_urls(server_list):
-    """Translate container URLs to localhost URLs for browser consumption"""
-    browser_servers = []
-    for server in server_list:
-        browser_server = server.copy()
-        # Translate synthetic-adsb container URLs to localhost URLs
-        browser_server["url"] = browser_server["url"].replace("synthetic-adsb:", "localhost:")
-        browser_servers.append(browser_server)
-    return browser_servers
-
-def ensure_tile_server_https(tile_config):
-    """Ensure tile server URLs have https:// prefix"""
-    for key, url in tile_config.items():
-        if url and not url.startswith(('http://', 'https://')):
-            tile_config[key] = f"https://{url}"
-    return tile_config
-
 @app.route("/api")
 def api():
     api = request.query_string.decode("utf-8")
@@ -201,54 +154,22 @@ def api():
     associators_api = request.args.getlist("associator")
     localisations_api = request.args.getlist("localisation")
     adsbs_api = request.args.getlist("adsb")
-    
-    # Translate localhost URLs to container URLs for internal validation and processing
-    servers_translated = translate_browser_to_container_urls(servers_api, "server")
-    adsbs_translated = translate_browser_to_container_urls(adsbs_api, "adsb")
-    
-    print(f"[DEBUG] Original servers: {servers_api}", flush=True)
-    print(f"[DEBUG] Translated servers: {servers_translated}", flush=True)
-    print(f"[DEBUG] Valid servers list: {valid['servers']}", flush=True)
-    
-    if not all(item in valid["servers"] for item in servers_translated):
-        print(f"[DEBUG] Server validation failed for translated: {servers_translated}", flush=True)
+    if not all(item in valid["servers"] for item in servers_api):
         return "Invalid server"
     if not all(item in valid["associators"] for item in associators_api):
         return "Invalid associator"
     if not all(item in valid["localisations"] for item in localisations_api):
         return "Invalid localisation"
-    if not all(item in valid["adsbs"] for item in adsbs_translated):
+    if not all(item in valid["adsbs"] for item in adsbs_api):
         return "Invalid ADSB"
-    
-    # Reconstruct API query string with translated container URLs for event processing
-    api_parts = []
-    for server in servers_translated:
-        api_parts.append(f"server={server}")
-    for adsb in adsbs_translated:
-        api_parts.append(f"adsb={adsb}")
-    for assoc in associators_api:
-        api_parts.append(f"associator={assoc}")
-    for loc in localisations_api:
-        api_parts.append(f"localisation={loc}")
-    
-    translated_api = "&".join(api_parts)
-    
     # send to event handler
     try:
-        print(f"Sending original API request: {api}", flush=True)
-        print(f"Sending translated API request: {translated_api}", flush=True)
-        reply_chunks = message_api_request.send_message(translated_api)
+        print(f"Sending API request: {api}", flush=True)
+        reply_chunks = message_api_request.send_message(api)
         print("Got reply_chunks generator", flush=True)
         reply = "".join(reply_chunks)
         print(f"Final reply: {reply}", flush=True)
-        # Parse the JSON string and return it as proper JSON response
-        import json
-        try:
-            reply_data = json.loads(reply)
-            return jsonify(reply_data)
-        except json.JSONDecodeError:
-            # If it's not valid JSON, return as-is with JSON error wrapper
-            return jsonify({"error": "Invalid JSON response", "raw": reply})
+        return reply
     except Exception as e:
         import traceback
 
@@ -263,15 +184,7 @@ def api():
 def serve_map(file):
     base_dir = os.path.abspath(os.path.dirname(__file__))
     public_folder = os.path.join(base_dir, "map")
-    response = send_from_directory(public_folder, file)
-    
-    # Add no-cache headers for JavaScript files to prevent browser caching during development
-    if file.endswith('.js'):
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
-    
-    return response
+    return send_from_directory(public_folder, file)
 
 
 # handle /cesium/ specifically
@@ -282,8 +195,7 @@ def serve_cesium_index():
 
 @app.route("/cesium/<path:file>")
 def serve_cesium_content(file):
-    cesium_host = os.environ.get("CESIUM_HOST", "127.0.0.1")
-    apache_url = f"http://{cesium_host}:8080/" + file
+    apache_url = "http://127.0.0.1:8080/" + file
     try:
         response = requests.get(apache_url, timeout=10)
         if response.status_code == 200:
