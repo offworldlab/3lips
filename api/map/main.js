@@ -1,11 +1,14 @@
 var config = window.APP_CONFIG;
 
-// fix tile server URL prefix
+// fix tile server URL prefix - only add if not already present
 for (var key in config['map']['tile_server']) {
   if (config['map']['tile_server'].hasOwnProperty(key)) {
       var value = config['map']['tile_server'][key];
-      var prefix = is_localhost(value) ? 'http://' : 'https://';
-      config['map']['tile_server'][key] = prefix + value;
+      // Only add prefix if the URL doesn't already have one
+      if (!value.startsWith('http://') && !value.startsWith('https://')) {
+        var prefix = is_localhost(value) ? 'http://' : 'https://';
+        config['map']['tile_server'][key] = prefix + value;
+      }
   }
 }
 
@@ -34,8 +37,8 @@ imageryProviders.push(new Cesium.ProviderViewModel({
 	tooltip: 'ESRI Tiles',
 	creationFunction: function() {
 		return new Cesium.UrlTemplateImageryProvider({
-			url: config['map']['tile_server']['esri'] + '{z}/{x}/{y}.jpg',
-      credit: 'Esri, Maxar, Earthstar Geographics, USDA FSA, USGS, Aerogrid, IGN, IGP, and the GIS User Community',
+			url: config['map']['tile_server']['esri'],
+      credit: '© OpenStreetMap contributors',
 			maximumLevel: 20,
 		});
 	}
@@ -47,7 +50,7 @@ imageryProviders.push(new Cesium.ProviderViewModel({
 	tooltip: 'MapBox Streets v11 Tiles',
 	creationFunction: function() {
 		return new Cesium.UrlTemplateImageryProvider({
-			url: config['map']['tile_server']['mapbox_streets'] + '{z}/{x}/{y}.png',
+			url: config['map']['tile_server']['mapbox_streets'],
       credit: '© <a href="https://www.mapbox.com/about/maps/">Mapbox</a> © <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> <strong><a href="https://www.mapbox.com/map-feedback/" target="_blank">Improve this map</a></strong>',
 			maximumLevel: 16,
 		});
@@ -60,7 +63,7 @@ imageryProviders.push(new Cesium.ProviderViewModel({
 	tooltip: 'MapBox Dark v10 Tiles',
 	creationFunction: function() {
 		return new Cesium.UrlTemplateImageryProvider({
-			url: config['map']['tile_server']['mapbox_dark'] + '{z}/{x}/{y}.png',
+			url: config['map']['tile_server']['mapbox_dark'],
       credit: '© <a href="https://www.mapbox.com/about/maps/">Mapbox</a> © <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> <strong><a href="https://www.mapbox.com/map-feedback/" target="_blank">Improve this map</a></strong>',
 			maximumLevel: 16,
 		});
@@ -73,9 +76,36 @@ imageryProviders.push(new Cesium.ProviderViewModel({
 	tooltip: 'OpenTopoMap Tiles',
 	creationFunction: function() {
 		return new Cesium.UrlTemplateImageryProvider({
-			url: config['map']['tile_server']['opentopomap'] + '{z}/{x}/{y}.png',
+			url: config['map']['tile_server']['opentopomap'],
       credit: '<code>Kartendaten: © <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende, SRTM | Kartendarstellung: © <a href="http://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)</code>',
 			maximumLevel: 8,
+		});
+	}
+}));
+
+// Satellite imagery providers
+imageryProviders.push(new Cesium.ProviderViewModel({
+	name: "ESRI World Imagery",
+	iconUrl: './icon/esri.jpg',
+	tooltip: 'ESRI World Imagery (Satellite)',
+	creationFunction: function() {
+		return new Cesium.UrlTemplateImageryProvider({
+			url: config['map']['tile_server']['esri_satellite'],
+      credit: 'Source: Esri, Maxar, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN, and the GIS User Community',
+			maximumLevel: 19,
+		});
+	}
+}));
+
+imageryProviders.push(new Cesium.ProviderViewModel({
+	name: "Google Satellite",
+	iconUrl: './icon/esri.jpg',
+	tooltip: 'Google Satellite Imagery',
+	creationFunction: function() {
+		return new Cesium.UrlTemplateImageryProvider({
+			url: config['map']['tile_server']['google_satellite'],
+      credit: '© Google',
+			maximumLevel: 20,
 		});
 	}
 }));
@@ -92,36 +122,13 @@ terrainProviders.push(new Cesium.ProviderViewModel({
 	}
 }));
 
+// Use Cesium World Terrain instead of problematic terrain.datr.dev
 terrainProviders.push(new Cesium.ProviderViewModel({
-	name: "30m Adelaide",
+	name: "Cesium World Terrain",
 	iconUrl: './icon/opentopomap.png',
-	tooltip: '30m Adelaide Terrain',
+	tooltip: 'Cesium World Terrain (Free)',
 	creationFunction: function() {
-		return Cesium.CesiumTerrainProvider.fromUrl(
-      'https://terrain.datr.dev/data/30m_adelaide/'
-		);
-	}
-}));
-
-terrainProviders.push(new Cesium.ProviderViewModel({
-	name: "90m Australia",
-	iconUrl: './icon/opentopomap.png',
-	tooltip: '90m Australia Terrain',
-	creationFunction: function() {
-		return Cesium.CesiumTerrainProvider.fromUrl(
-      'https://terrain.datr.dev/data/90m_australia/'
-		);
-	}
-}));
-
-terrainProviders.push(new Cesium.ProviderViewModel({
-	name: "90m South Australia",
-	iconUrl: './icon/opentopomap.png',
-	tooltip: '90m South Australia Terrain',
-	creationFunction: function() {
-		return Cesium.CesiumTerrainProvider.fromUrl(
-      'https://terrain.datr.dev/data/90m_south_australia/'
-		);
+		return Cesium.createWorldTerrainAsync();
 	}
 }));
 
@@ -198,6 +205,12 @@ function is_localhost(url) {
     return true;
   }
   
+  // Check if hostname is an IP address before trying to parse it
+  const ipRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+  if (!ipRegex.test(hostname)) {
+    return false; // If it's not an IP, assume it's not localhost
+  }
+  
   const localRanges = ['127.0.0.1', '192.168.0.0/16', '10.0.0.0/8', '172.16.0.0/12'];
 
   const ipToInt = ip => ip.split('.').reduce((acc, octet) => (acc << 8) + +octet, 0) >>> 0;
@@ -225,8 +238,31 @@ window.addEventListener('load', function () {
   // add radar points
   const radar_names = new URLSearchParams(
     window.location.search).getAll('server');
-  var radar_config_url = radar_names.map(
-    url => `http://${url}/api/config`);
+  // Convert container hostnames to localhost for browser access
+  var radar_config_url = radar_names.map(url => {
+    // Handle full URLs with protocol
+    if (url.startsWith('http')) {
+      // Replace container hostnames with localhost mappings
+      url = url.replace('synthetic-radar1:5000', 'localhost:49158')
+               .replace('synthetic-radar2:5000', 'localhost:49159')
+               .replace('synthetic-radar3:5000', 'localhost:49160')
+               .replace('synthetic-adsb-test:5001', 'localhost:5001')
+               .replace('synthetic-adsb:49158', 'localhost:49158')
+               .replace('synthetic-adsb:49159', 'localhost:49159')
+               .replace('synthetic-adsb:49160', 'localhost:49160');
+      return `${url}/api/config`;
+    } else {
+      // Handle hostname only
+      url = url.replace('synthetic-radar1:5000', 'localhost:49158')
+               .replace('synthetic-radar2:5000', 'localhost:49159')
+               .replace('synthetic-radar3:5000', 'localhost:49160')
+               .replace('synthetic-adsb-test:5001', 'localhost:5001')
+               .replace('synthetic-adsb:49158', 'localhost:49158')
+               .replace('synthetic-adsb:49159', 'localhost:49159')
+               .replace('synthetic-adsb:49160', 'localhost:49160');
+      return `http://${url}/api/config`;
+    }
+  });
   radar_config_url = radar_config_url.map(function(url) {
     console.log('Processing radar URL:', url, 'is_localhost:', is_localhost(url));
     if (!is_localhost(url)) {
@@ -241,15 +277,30 @@ window.addEventListener('load', function () {
   style_radar.pointSize = 10;
   style_radar.type = "radar";
   style_radar.timestamp = Date.now();
+  console.log('DEBUG: radar_config_url array:', radar_config_url);
   radar_config_url.forEach(url => {
+    console.log('DEBUG: Processing radar config URL:', url);
+    // Skip config requests for synthetic radar servers that don't have config endpoints
+    if (url.includes('49158') || url.includes('49159') || url.includes('49160')) {
+      console.log('Skipping config request for synthetic radar:', url);
+      return;
+    }
+    
     fetch(url)
       .then(response => {
         if (!response.ok) {
+          if (response.status === 404) {
+            console.log('Config endpoint not available (expected):', url);
+            return null;
+          }
           throw new Error('Network response was not ok');
         }
         return response.json();
       })
       .then(data => {
+        // Skip if no data (404 response)
+        if (!data) return;
+        
         // add radar rx and tx
         if (!doesEntityNameExist(data.location.rx.name)) {
           addPoint(
@@ -285,7 +336,12 @@ window.addEventListener('load', function () {
   adsb_url = new URLSearchParams(
     window.location.search).get('adsb').split('&');
   adsb_url = adsb_url.map(function(url) {
-    const fullUrl = `http://${url}/data/aircraft.json`;
+    // Replace container hostnames with localhost mappings for browser access
+    url = url.replace('synthetic-adsb-test:5001', 'localhost:5001')
+             .replace('synthetic-adsb:5001', 'localhost:5001')
+             .replace('synthetic-radar1:5000', 'localhost:49158') 
+             .replace('synthetic-radar2:5000', 'localhost:49159');
+    const fullUrl = url.startsWith('http') ? `${url}/data/aircraft.json` : `http://${url}/data/aircraft.json`;
     console.log('Processing ADSB URL:', fullUrl, 'is_localhost:', is_localhost(fullUrl));
     if (!is_localhost(fullUrl)) {
       console.log('Converting to HTTPS:', fullUrl);
