@@ -10,9 +10,9 @@
   <meta name="viewport"
     content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no" />
   <title>3lips Map</title>
-  <script src="/cesium/Build/Cesium/Cesium.js"></script>
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
   <style>
-    @import url(/cesium/Build/Cesium/Widgets/widgets.css);
+    @import url(https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css);
 
     html,
     body,
@@ -132,11 +132,36 @@
     if (configParam) {
       try {
         window.APP_CONFIG = JSON.parse(decodeURIComponent(configParam));
+        console.log('Config loaded from URL:', window.APP_CONFIG);
       } catch (e) {
         console.error('Map page - Error parsing config:', e);
       }
     } else {
       console.error('No config found in URL parameters');
+    }
+
+    // Fallback config if APP_CONFIG is not loaded
+    if (!window.APP_CONFIG) {
+      console.log('Using fallback config with updated tile servers');
+      window.APP_CONFIG = {
+        "map": {
+          "location": {
+            "latitude": -34.9286,
+            "longitude": 138.5999
+          },
+          "center_width": 50000,
+          "center_height": 40000,
+          "tile_server": {
+            "esri": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+            "mapbox_streets": "https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png",
+            "mapbox_dark": "https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png",
+            "opentopomap": "https://tile.opentopomap.org/{z}/{x}/{y}.png",
+            "esri_satellite": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            "google_satellite": "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+          },
+          "tar1090": "http://synthetic-adsb:5001"
+        }
+      };
     }
   </script>
   <script src="lib/jquery-3.6.0.min.js"></script>
