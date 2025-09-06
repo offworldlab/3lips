@@ -34,7 +34,7 @@ imageryProviders.push(new Cesium.ProviderViewModel({
 	tooltip: 'ESRI Tiles',
 	creationFunction: function() {
 		return new Cesium.UrlTemplateImageryProvider({
-			url: config['map']['tile_server']['esri'] + '{z}/{x}/{y}.jpg',
+			url: config['map']['tile_server']['esri'] + '{z}/{y}/{x}',
       credit: 'Esri, Maxar, Earthstar Geographics, USDA FSA, USGS, Aerogrid, IGN, IGP, and the GIS User Community',
 			maximumLevel: 20,
 		});
