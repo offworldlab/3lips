@@ -37,11 +37,7 @@ class SphericalIntersection:
             radar_data[radar]["config"]["location"][self.not_type]["longitude"],
             radar_data[radar]["config"]["location"][self.not_type]["altitude"],
         ]
-        reference_ecef = Geometry.lla2ecef(
-            reference_lla[0],
-            reference_lla[1],
-            reference_lla[2],
-        )
+        # No need for ECEF reference anymore
 
         for target in assoc_detections:
             nDetections = len(assoc_detections[target])
@@ -58,15 +54,10 @@ class SphericalIntersection:
             for index, radar in enumerate(assoc_detections[target]):
                 # convert position to ENU and add to S
                 config = radar_data[radar["radar"]]["config"]
-                x, y, z = Geometry.lla2ecef(
+                x_enu, y_enu, z_enu = Geometry.lla2enu(
                     config["location"][self.type]["latitude"],
                     config["location"][self.type]["longitude"],
                     config["location"][self.type]["altitude"],
-                )
-                x_enu, y_enu, z_enu = Geometry.ecef2enu(
-                    x,
-                    y,
-                    z,
                     reference_lla[0],
                     reference_lla[1],
                     reference_lla[2],
@@ -74,9 +65,10 @@ class SphericalIntersection:
                 S[index, :] = [x_enu, y_enu, z_enu]
 
                 # add to z
-                distance = Geometry.distance_ecef(
-                    [x, y, z],
-                    [reference_ecef[0], reference_ecef[1], reference_ecef[2]],
+                # Distance from this radar to reference point (already in ENU)
+                distance = Geometry.distance_enu(
+                    [x_enu, y_enu, z_enu],
+                    [0, 0, 0],  # Reference is at origin in ENU
                 )
                 R_i = (radar["delay"] * 1000) + distance
                 z_vec[index, :] = (x_enu**2 + y_enu**2 + z_enu**2 - R_i**2) / 2
@@ -117,7 +109,7 @@ class SphericalIntersection:
 
             # convert points back to LLA
             for index in range(len(x_t_list)):
-                x, y, z = Geometry.enu2ecef(
+                lat, lon, alt = Geometry.enu2lla(
                     x_t_list[index][0],
                     x_t_list[index][1],
                     x_t_list[index][2],
@@ -125,7 +117,6 @@ class SphericalIntersection:
                     reference_lla[1],
                     reference_lla[2],
                 )
-                lat, lon, alt = Geometry.ecef2lla(x, y, z)
                 x_t_list[index] = [lat, lon, alt]
 
             if x_t[0][2] > x_t[1][2]:

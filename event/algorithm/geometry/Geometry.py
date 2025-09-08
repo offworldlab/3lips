@@ -139,6 +139,35 @@ except ImportError:
                 )
                 return MockGeometry.lla2ecef(lat, lon, alt)
 
+        @staticmethod
+        def distance_enu(point1, point2):
+            """Mock distance calculation in ENU coordinates."""
+            return np.sqrt(
+                (point2[0] - point1[0]) ** 2
+                + (point2[1] - point1[1]) ** 2
+                + (point2[2] - point1[2]) ** 2
+            )
+
+        @staticmethod
+        def average_points(points):
+            """Mock average of points."""
+            return [sum(coord) / len(coord) for coord in zip(*points)]
+
+        @staticmethod
+        def distance_lla(point1, point2):
+            """Mock distance between two LLA points using ENU conversion."""
+            # Use first point as reference
+            ref_lat, ref_lon, ref_alt = point1
+            
+            # Convert second point to ENU relative to first point
+            east, north, up = MockGeometry.lla2enu(
+                point2[0], point2[1], point2[2],
+                ref_lat, ref_lon, ref_alt
+            )
+            
+            # Calculate distance from origin (0,0,0) to the ENU point
+            return np.sqrt(east**2 + north**2 + up**2)
+
     # Use mock geometry in testing environments
     print(
         f"Warning: Using mock Geometry implementation. RETINAsolver not available at {retina_solver_path}"
