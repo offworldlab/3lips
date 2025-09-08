@@ -327,7 +327,7 @@ async def event():
                 ellipsoid_radars = []
                 for radar in associated_dets_2_radars[key]:
                     ellipsoid_radars.append(radar["radar"])
-                    x_tx, y_tx, z_tx = Geometry.lla2ecef(
+                    tx_lla = [
                         radar_dict_item[radar["radar"]]["config"]["location"]["tx"][
                             "latitude"
                         ],
@@ -337,8 +337,8 @@ async def event():
                         radar_dict_item[radar["radar"]]["config"]["location"]["tx"][
                             "altitude"
                         ],
-                    )
-                    x_rx, y_rx, z_rx = Geometry.lla2ecef(
+                    ]
+                    rx_lla = [
                         radar_dict_item[radar["radar"]]["config"]["location"]["rx"][
                             "latitude"
                         ],
@@ -348,22 +348,22 @@ async def event():
                         radar_dict_item[radar["radar"]]["config"]["location"]["rx"][
                             "altitude"
                         ],
-                    )
-                    ellipsoid = Ellipsoid(
-                        [x_tx, y_tx, z_tx],
-                        [x_rx, y_rx, z_rx],
-                        radar["radar"],
-                    )
+                    ]
+                    ellipsoid = Ellipsoid(tx_lla, rx_lla, radar["radar"])
                     points = localisation_algorithm.sample(
                         ellipsoid,
                         radar["delay"] * 1000,
                         nDisplayEllipse,
                     )
+                    # Convert ENU points to LLA using ellipsoid midpoint as reference
                     for i in range(len(points)):
-                        lat, lon, alt = Geometry.ecef2lla(
+                        lat, lon, alt = Geometry.enu2lla(
                             points[i][0],
                             points[i][1],
                             points[i][2],
+                            ellipsoid.midpoint_lla[0],
+                            ellipsoid.midpoint_lla[1],
+                            ellipsoid.midpoint_lla[2],
                         )
                         if localisation_id in [
                             "ellipsoid-parametric-mean",

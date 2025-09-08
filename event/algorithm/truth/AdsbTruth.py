@@ -15,13 +15,16 @@ def is_localhost(server):
         ip = ipaddress.ip_address(host)
         return ip.is_loopback or ip.is_private
     except ValueError:
-        # Not an IP, check for 'localhost'
-        return host.startswith("localhost")
+        # Not an IP, check for 'localhost' or container names that should use localhost
+        return host.startswith("localhost") or host.startswith("synthetic-adsb")
 
 
 def translate_localhost_to_container(server):
     """Translate localhost URLs to container names for inter-container communication."""
     # Disabled translation for host networking mode
+    # Also handle synthetic-adsb as localhost since we're using host networking
+    if server.startswith("synthetic-adsb"):
+        return server.replace("synthetic-adsb", "localhost")
     return server
 
 

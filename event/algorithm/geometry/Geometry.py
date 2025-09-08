@@ -15,6 +15,7 @@ class Geometry:
     def __init__(self):
         """@brief Constructor for the Geometry class."""
 
+    @staticmethod
     def lla2enu(lat, lon, alt, ref_lat, ref_lon, ref_alt):
         """@brief Converts geodetic coordinates to East-North-Up (ENU) coordinates.
         @param lat (float): Target geodetic latitude in degrees.
@@ -48,6 +49,7 @@ class Geometry:
         
         return east, north, up
 
+    @staticmethod
     def enu2lla(east, north, up, ref_lat, ref_lon, ref_alt):
         """@brief Converts East-North-Up (ENU) coordinates to geodetic coordinates.
         @param east (float): East coordinate in meters.
@@ -85,6 +87,7 @@ class Geometry:
             
         return lat, lon, alt
 
+    @staticmethod
     def distance_enu(point1, point2):
         """@brief Computes the Euclidean distance between two points in ENU coordinates.
         @param point1 (tuple): Coordinates of the first point (east, north, up) in meters.
@@ -97,9 +100,29 @@ class Geometry:
             + (point2[2] - point1[2]) ** 2,
         )
 
+    @staticmethod
     def average_points(points):
         """@brief Computes the average point from a list of points.
         @param points (list): List of points, where each point is a tuple of coordinates (x, y, z) in meters.
         @return average_point (list): Coordinates of the average point (x_avg, y_avg, z_avg) in meters.
         """
         return [sum(coord) / len(coord) for coord in zip(*points)]
+
+    @staticmethod
+    def distance_lla(point1, point2):
+        """@brief Computes the distance between two LLA points using ENU conversion.
+        @param point1 (tuple): First point (lat, lon, alt) in degrees and meters.
+        @param point2 (tuple): Second point (lat, lon, alt) in degrees and meters.
+        @return distance (float): Distance between the two points in meters.
+        """
+        # Use first point as reference
+        ref_lat, ref_lon, ref_alt = point1
+        
+        # Convert second point to ENU relative to first point
+        east, north, up = Geometry.lla2enu(
+            point2[0], point2[1], point2[2],
+            ref_lat, ref_lon, ref_alt
+        )
+        
+        # Calculate distance from origin (0,0,0) to the ENU point
+        return math.sqrt(east**2 + north**2 + up**2)

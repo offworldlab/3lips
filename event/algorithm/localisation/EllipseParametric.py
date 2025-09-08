@@ -49,21 +49,18 @@ class EllipseParametric:
 
                 if ellipsoid is None:
                     config = radar_data[radar["radar"]]["config"]
-                    x_tx, y_tx, z_tx = Geometry.lla2ecef(
+                    tx_lla = [
                         config["location"]["tx"]["latitude"],
                         config["location"]["tx"]["longitude"],
                         config["location"]["tx"]["altitude"],
-                    )
-                    x_rx, y_rx, z_rx = Geometry.lla2ecef(
+                    ]
+                    rx_lla = [
                         config["location"]["rx"]["latitude"],
                         config["location"]["rx"]["longitude"],
                         config["location"]["rx"]["altitude"],
-                    )
-                    ellipsoid = Ellipsoid(
-                        [x_tx, y_tx, z_tx],
-                        [x_rx, y_rx, z_rx],
-                        radar["radar"],
-                    )
+                    ]
+                    ellipsoid = Ellipsoid(tx_lla, rx_lla, radar["radar"])
+                    self.ellipsoids.append(ellipsoid)
 
                 samples = self.sample(ellipsoid, radar["delay"] * 1000, self.nSamples)
                 target_samples[target][radar["radar"]] = samples
@@ -80,7 +77,7 @@ class EllipseParametric:
                     for i in range(1, len(radar_keys)):
                         # loop points in other list
                         if not any(
-                            Geometry.distance_ecef(point1, point2) < self.threshold
+                            Geometry.distance_enu(point1, point2) < self.threshold
                             for point2 in target_samples[target][radar_keys[i]]
                         ):
                             valid_point = False
@@ -108,7 +105,7 @@ class EllipseParametric:
                             break
                         # loop points in other list
                         for point2 in target_samples[target][radar_keys[i]]:
-                            distance = Geometry.distance_ecef(point1, point2)
+                            distance = Geometry.distance_enu(point1, point2)
                             distance_from_point1[i - 1] = min(
                                 distance_from_point1[i - 1], distance
                             )
@@ -126,33 +123,38 @@ class EllipseParametric:
                 print("Invalid method.")
                 return output
 
-            # remove duplicates and convert to LLA
+            # convert ENU samples to LLA
             output[target] = {}
             output[target]["points"] = []
-            for i in range(len(samples_intersect)):
-                samples_intersect[i] = Geometry.ecef2lla(
-                    samples_intersect[i][0],
-                    samples_intersect[i][1],
-                    samples_intersect[i][2],
+            
+            # Get reference point (use first radar's midpoint)
+            ref_ellipsoid = next(
+                (item for item in self.ellipsoids if item.name == radar_keys[0]),
+                None,
+            )
+            ref_lat = ref_ellipsoid.midpoint_lla[0]
+            ref_lon = ref_ellipsoid.midpoint_lla[1]
+            ref_alt = ref_ellipsoid.midpoint_lla[2]
+            
+            for enu_point in samples_intersect:
+                lat, lon, alt = Geometry.enu2lla(
+                    enu_point[0], enu_point[1], enu_point[2],
+                    ref_lat, ref_lon, ref_alt
                 )
                 output[target]["points"].append(
-                    [
-                        round(samples_intersect[i][0], 3),
-                        round(samples_intersect[i][1], 3),
-                        round(samples_intersect[i][2], 3),
-                    ],
+                    [round(lat, 3), round(lon, 3), round(alt, 3)]
                 )
 
         return output
 
     def sample(self, ellipsoid, bistatic_range, n):
-        """@brief Generate a set of ECEF points for the ellipse.
+        """@brief Generate a set of ENU points for the ellipse.
         @details No arc length parametrisation.
-        @details Use ECEF because distance measure is simple over LLA.
+        @details Points are in ENU coordinates relative to ellipsoid midpoint.
         @param ellipsoid (Ellipsoid): The ellipsoid object to use.
         @param bistatic_range (float): Bistatic range for ellipse.
         @param n (int): Number of points to generate.
-        @return list: Samples with size [n, 3].
+        @return list: Samples with size [n, 3] in ENU coordinates.
         """
         # rotation matrix
         theta = ellipsoid.yaw
@@ -170,15 +172,7 @@ class EllipseParametric:
         output = []
 
         for i in range(len(r_1)):
-            # points to ECEF
-            x, y, z = Geometry.enu2ecef(
-                r_1[i][0],
-                r_1[i][1],
-                100,
-                ellipsoid.midpoint_lla[0],
-                ellipsoid.midpoint_lla[1],
-                ellipsoid.midpoint_lla[2],
-            )
-            output.append([x, y, z])
+            # points in ENU (altitude fixed at 100m for 2D ellipse)
+            output.append([r_1[i][0], r_1[i][1], 100])
 
         return output
